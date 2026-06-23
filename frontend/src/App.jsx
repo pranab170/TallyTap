@@ -22,12 +22,12 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Calculate Subtotal and Final Total at the top level so they are always available
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Safe and clean runtime dynamic totals
+  const subtotal = Array.isArray(cart) ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0) : 0;
   const finalTotal = Math.max(0, subtotal - discount);
 
-  // UPI Configuration Setup
-  const upiId = "9556600299@axl"; 
+  // Dynamic active safety fallback UPI construction logic 
+  const upiId = "yourname@ybl"; // Replace with your actual UPI ID handle
   const businessName = "TallyTap POS";
   const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
 
@@ -108,7 +108,7 @@ function App() {
       receiptText += leftAlign;
       
       cart.forEach(item => {
-        const itemLine = `${item.name} x${item.quantity}`.padEnd(22) + `Rs.${(item.price * item.quantity).toFixed(0)}`.padStart(10);
+        const itemLine = `${item.name} x${item.quantity}`.padEnd(22) + `Rs.${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(10);
         receiptText += itemLine + lineFeed;
       });
 
@@ -189,7 +189,7 @@ function App() {
   };
 
   return (
-    <div className="main-layout" style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0 }}>
+    <div className="main-layout" style={{ display: 'flex', width: '100vw', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#fff', color: '#000' }}>
       
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
@@ -209,7 +209,7 @@ function App() {
                 <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px', color: 'black' }}>
                   <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>₹{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
