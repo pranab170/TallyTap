@@ -113,7 +113,7 @@ function App() {
       
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
-        <div className="receipt-overlay-wrapper" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
+        <div className="receipt-screen-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
           <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
             
             <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px' }}>Jai Shree Ram</h2>
@@ -158,38 +158,32 @@ function App() {
       {/* --- RESPONSIVE LAYOUT & PRINTER CORE CSS Engine --- */}
       <style>{`
         @media print {
-          /* Hide screen ui and options cleanly */
-          .menu-pane, .cart-pane, .no-print, form, h2, h3, button {
+          /* Hide main interface layouts on final paper compilation */
+          .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay {
             display: none !important;
           }
           
-          .main-layout {
-            display: block !important;
-            height: auto !important;
-            background: white !important;
+          body * {
+            visibility: hidden !important;
           }
 
-          /* Force layout overlay wrapper to align perfectly as structural parent layout context */
-          .receipt-overlay-wrapper {
-            position: absolute !important;
-            background: white !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            display: block !important;
+          /* Force exact print boundaries onto the targeted block container only */
+          #receipt-container, #receipt-container * {
+            visibility: visible !important;
           }
 
-          /* Thermal standard formatting container setup */
           #receipt-container { 
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 76mm !important; 
-            margin: 0 auto !important; 
+            margin: 0 !important; 
             padding: 2mm !important; 
             border: none !important; 
-            box-shadow: none !important; 
-            display: flex !important;
-            color: black !important;
+            box-shadow: none !important;
+            display: block !important;
             background: white !important;
+            color: black !important;
           }
         }
 
