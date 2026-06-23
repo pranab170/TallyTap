@@ -34,7 +34,7 @@ function App() {
 
   // UPI String compilation hook
   const upiString = useMemo(() => {
-    const upiId = "yourname@ybl"; // Replace with your actual UPI ID handle
+    const upiId = "9556600299@axl"; // Replace with your actual UPI ID handle
     const businessName = "TallyTap POS";
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
