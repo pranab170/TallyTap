@@ -1,0 +1,6 @@
+{
+  "appId": "com.pranab.tallytap",
+  "appName": "TallyTap",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
