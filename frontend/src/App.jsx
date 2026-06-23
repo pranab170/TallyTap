@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/purity */
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 
 // Point Axios to your live backend on Render
 axios.defaults.baseURL = 'https://tallytap-backend.onrender.com';
+
 function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -27,7 +29,11 @@ function App() {
 
     // Fetch inventory items
     axios.get('/api/products')
-      .then(response => setProducts(response.data))
+      .then(response => {
+        if (response.data && Array.isArray(response.data)) {
+          setProducts(response.data);
+        }
+      })
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
@@ -36,13 +42,13 @@ function App() {
     if (!newItemName) return;
 
     const newProduct = {
-      id: Date.now(), 
+      id: String(Date.now() + Math.random()), 
       name: newItemName,
-      price: parseFloat(newItemPrice) || 0, // Default price agar daali toh, nahi toh 0
+      price: parseFloat(newItemPrice) || 0,
       category: "Custom"
     };
 
-    setProducts([...products, newProduct]);
+    setProducts(prevProducts => [...prevProducts, newProduct]);
     axios.post('/api/products', newProduct).catch(e => console.error(e));
     setNewItemName('');
     setNewItemPrice('');
@@ -51,30 +57,34 @@ function App() {
   const handleDeleteMenuProduct = (e, id) => {
     e.stopPropagation(); 
     if(window.confirm("Are you sure you want to delete this item?")) {
-      setProducts(products.filter(product => product.id !== id));
+      setProducts(prevProducts => prevProducts.filter(product => (product.id !== id && product._id !== id)));
       axios.delete(`/api/products/${id}`).catch(e => console.error(e));
     }
   };
 
-  // 🔥 CHANGED WORKFLOW: Har tap par naya row banega, chahe item same ho!
+  // Har tap par naya row banega, chahe item same ho!
   const addToCart = (product) => {
+    const uniqueCartId = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : String(Math.random() + Date.now());
+
     const newCartItem = {
-      cartItemId: Date.now() + Math.random(), // Unique ID sirf cart row ke liye
-      id: product.id,
+      cartItemId: uniqueCartId,
+      id: product.id || product._id,
       name: product.name,
-      price: product.price || 0, // Agar menu mein price nahi set ki toh 0 se start hoga
+      price: product.price || 0, 
       quantity: 1
     };
-    setCart([...cart, newCartItem]);
+    setCart(prevCart => [...prevCart, newCartItem]);
   };
 
-  // 🔥 CHANGED: Ab yeh cartItemId se update karega taaki sirf wahi row change ho
+  // CartItemId se update karega taaki sirf wahi row change ho
   const updateCartItem = (cartItemId, key, value) => {
-    setCart(cart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
+    setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
   };
 
-  // 🔥 CHANGED: Cart se remove karne ke liye bhi cartItemId use hoga
-  const removeFromCart = (cartItemId) => setCart(cart.filter(item => item.cartItemId !== cartItemId));
+  // Cart se remove karne ke liye bhi cartItemId use hoga
+  const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const finalTotal = Math.max(0, subtotal - discount);
@@ -183,13 +193,16 @@ function App() {
         </div>
         <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>Menu Items</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px', marginTop: '20px' }}>
-          {products.map(product => (
-            <div key={product.id} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
-              <button onClick={(e) => handleDeleteMenuProduct(e, product.id)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
-              <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
-              <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `₹${product.price}` : 'Set Price in Cart'}</div>
-            </div>
-          ))}
+          {Array.isArray(products) && products.map(product => {
+            const productId = product.id || product._id || String(Math.random());
+            return (
+              <div key={productId} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
+                <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
+                <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
+                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `₹${product.price}` : 'Set Price in Cart'}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
