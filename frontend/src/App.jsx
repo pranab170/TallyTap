@@ -9,9 +9,10 @@ function App() {
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
 
-  // Form states for adding new item
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemPrice, setNewItemPrice] = useState('');
+  // Directly adding custom item inputs inside the sidebar workflow area
+  const [sidebarItemName, setSidebarItemName] = useState('');
+  const [sidebarItemPrice, setSidebarItemPrice] = useState('');
+  const [sidebarItemQty, setSidebarItemQty] = useState('1');
   
   const [showReceipt, setShowReceipt] = useState(false);
 
@@ -19,14 +20,9 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Keyboard navigation grid tracking states
+  // Layout focus & management tracking
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
-  const [activeCartItemId, setActiveCartItemId] = useState(null);
-  const [activeField, setActiveField] = useState(null); 
-
   const productGridRef = useRef([]);
-  const priceInputRefs = useRef({});
-  const qtyInputRefs = useRef({});
 
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
@@ -41,27 +37,30 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // --- ACTIONS & OPERATIONAL HANDLERS ---
-
-  const handleAddItemToCatalog = (e) => {
+  // --- RECONSTRUCTED WORKFLOW: ADD ITEM VIA DIRECT INPUT FIELDS ---
+  const handleAddDirectItemToCart = (e) => {
     e.preventDefault();
-    if (!newItemName.trim() || !newItemPrice) return;
+    if (!sidebarItemName.trim() || !sidebarItemPrice) return;
 
-    axios.post('/api/products', {
-      name: newItemName.trim(),
-      price: parseFloat(newItemPrice) || 0
-    })
-    .then(response => {
-      if (response.data) {
-        setProducts(prev => [...prev, response.data]);
-        setNewItemName('');
-        setNewItemPrice('');
-      }
-    })
-    .catch(error => console.error("Error adding product to backend:", error));
+    const uniqueCartId = String(Date.now() + Math.random());
+    const newCartItem = {
+      cartItemId: uniqueCartId,
+      id: "custom-" + Date.now(),
+      name: sidebarItemName.trim(),
+      price: parseFloat(sidebarItemPrice) || 0,
+      quantity: parseFloat(sidebarItemQty) || 1
+    };
+
+    setCart(prevCart => [...prevCart, newCartItem]);
+    
+    // Clear inputs for next speed entry
+    setSidebarItemName('');
+    setSidebarItemPrice('');
+    setSidebarItemQty('1');
   };
 
-  const addToCart = (product) => {
+  // Quick Action: Adding from Left Catalog directly maps to cart standard injection
+  const addCatalogItemToCart = (product) => {
     const uniqueCartId = String(Date.now() + Math.random());
     const newCartItem = {
       cartItemId: uniqueCartId,
@@ -70,39 +69,15 @@ function App() {
       price: product.price || 0, 
       quantity: 1
     };
-    
     setCart(prevCart => [...prevCart, newCartItem]);
-    
-    setActiveCartItemId(uniqueCartId);
-    setActiveField('price');
-    setTimeout(() => {
-      if (priceInputRefs.current[uniqueCartId]) {
-        priceInputRefs.current[uniqueCartId].focus();
-        priceInputRefs.current[uniqueCartId].select();
-      }
-    }, 50);
   };
 
-  const handlePriceEnter = (cartItemId) => {
-    setActiveField('quantity');
-    setTimeout(() => {
-      if (qtyInputRefs.current[cartItemId]) {
-        qtyInputRefs.current[cartItemId].focus();
-        qtyInputRefs.current[cartItemId].select();
-      }
-    }, 50);
+  const updateCartItem = (cartItemId, key, value) => {
+    setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
   };
 
-  const handleQuantityEnter = () => {
-    setActiveCartItemId(null);
-    setActiveField(null);
-    setTimeout(() => {
-      if (productGridRef.current[focusedProductIndex]) {
-        productGridRef.current[focusedProductIndex].focus();
-      }
-    }, 50);
-  };
-
+  const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
+  
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     if (window.confirm("Do you want to delete this product from menu?")) {
@@ -115,16 +90,10 @@ function App() {
     }
   };
 
-  const updateCartItem = (cartItemId, key, value) => {
-    setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
-  };
-
-  const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   const handleCheckout = () => setShowReceipt(true);
   const completeOrder = () => { setShowReceipt(false); setCart([]); setDiscount(0); };
 
   // --- LIFE CYCLE REGISTRATION HOOKS ---
-
   useEffect(() => {
     let meta = document.querySelector('meta[name="viewport"]');
     if (!meta) {
@@ -148,37 +117,32 @@ function App() {
       if (showReceipt) return;
       const itemsPerRow = 4; 
       
-      if (!activeCartItemId) {
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + 1));
-        } else if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          setFocusedProductIndex((prev) => Math.max(0, prev - 1));
-        } else if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + itemsPerRow));
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setFocusedProductIndex((prev) => Math.max(0, prev - itemsPerRow));
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          if (products[focusedProductIndex]) {
-            addToCart(products[focusedProductIndex]);
-          }
+      // If we are typing in inputs, don't trigger grid arrows navigation
+      if (document.activeElement.tagName === 'INPUT') return;
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + 1));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setFocusedProductIndex((prev) => Math.max(0, prev - 1));
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + itemsPerRow));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedProductIndex((prev) => Math.max(0, prev - itemsPerRow));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (products[focusedProductIndex]) {
+          addCatalogItemToCart(products[focusedProductIndex]);
         }
       }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [products, focusedProductIndex, activeCartItemId, showReceipt]);
-
-  useEffect(() => {
-    if (!activeCartItemId && productGridRef.current[focusedProductIndex]) {
-      productGridRef.current[focusedProductIndex].focus();
-    }
-  }, [focusedProductIndex, activeCartItemId]);
+  }, [products, focusedProductIndex, showReceipt]);
 
   const connectBluetoothPrinter = async () => {
     try {
@@ -355,7 +319,7 @@ function App() {
         }
       `}</style>
 
-      {/* --- MENU VIEW PANE --- */}
+      {/* --- MENU VIEW PANE (Left Side Catalog Only) --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
         {/* TOP BAR: Printer Connectivity */}
@@ -371,32 +335,6 @@ function App() {
           </button>
         </div>
 
-        {/* ADD PRODUCT CATALOG FORM */}
-        <div style={{ backgroundColor: 'white', padding: '15px 20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
-          <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '15px' }}>➕ Add New Item to Menu Catalog</h4>
-          <form onSubmit={handleAddItemToCatalog} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="Enter Item Name (e.g. Samosa)" 
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              style={{ flex: 2, padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', backgroundColor: 'white', color: 'black' }}
-              required
-            />
-            <input 
-              type="number" 
-              placeholder="Price (Rs.)" 
-              value={newItemPrice}
-              onChange={(e) => setNewItemPrice(e.target.value)}
-              style={{ flex: 1, padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', backgroundColor: 'white', color: 'black' }}
-              required
-            />
-            <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>
-              ➕ Add Product to Menu
-            </button>
-          </form>
-        </div>
-
         <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>
           Menu Catalog
         </h2>
@@ -404,13 +342,13 @@ function App() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '20px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const productId = product.id || product._id || String(idx);
-            const isFocused = focusedProductIndex === idx && !activeCartItemId;
+            const isFocused = focusedProductIndex === idx;
             return (
               <div 
                 key={productId} 
                 ref={el => productGridRef.current[idx] = el}
                 tabIndex={0}
-                onClick={() => addToCart(product)} 
+                onClick={() => addCatalogItemToCart(product)} 
                 onFocus={() => setFocusedProductIndex(idx)}
                 style={{ 
                   position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', 
@@ -431,48 +369,30 @@ function App() {
       {/* --- CHECKOUT CART SIDEBAR PANE --- */}
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
+        
+        {/* Cart Item Scrolling List */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
           {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty.</p> : cart.map((item, index) => {
-            const isItemActive = activeCartItemId === item.cartItemId;
             return (
-              <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px', backgroundColor: isItemActive ? '#f0f7ff' : 'transparent' }}>
+              <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
-                      ref={el => priceInputRefs.current[item.cartItemId] = el}
                       value={item.price || ''} 
-                      placeholder="0" 
                       onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} 
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handlePriceEnter(item.cartItemId);
-                        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                          e.stopPropagation();
-                        }
-                      }}
-                      style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: (isItemActive && activeField === 'price') ? '2px solid #007BFF' : '1px solid #28a745', fontWeight: 'bold', outline: 'none' }} 
+                      style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc', outline: 'none' }} 
                     />
                   </label>
 
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
-                      ref={el => qtyInputRefs.current[item.cartItemId] = el}
                       value={item.quantity} 
                       onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} 
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleQuantityEnter();
-                        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                          e.stopPropagation();
-                        }
-                      }}
-                      style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: (isItemActive && activeField === 'quantity') ? '2px solid #007BFF' : '1px solid #ccc', outline: 'none' }} 
+                      style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc', outline: 'none' }} 
                     />
                   </label>
                   
@@ -482,7 +402,45 @@ function App() {
             );
           })}
         </div>
-        <div style={{ padding: '20px', backgroundColor: '#fafafa', borderTop: '2px solid #eee' }}>
+
+        {/* ✅ THE PERFECT FIT: DIRECT MANUAL INPUT FORM ABOVE CHECKOUT AREA */}
+        <div style={{ padding: '15px 20px', backgroundColor: '#f9f9f9', borderTop: '2px solid #eee', borderBottom: '1px solid #ddd' }}>
+          <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px', fontWeight: 'bold' }}>🛒 Direct Entry / Add Quick Item</h4>
+          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <input 
+              type="text" 
+              placeholder="Item Name (e.g. Samosa)" 
+              value={sidebarItemName}
+              onChange={(e) => setSidebarItemName(e.target.value)}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '13px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}
+              required
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input 
+                type="number" 
+                placeholder="Price (Rs.)" 
+                value={sidebarItemPrice}
+                onChange={(e) => setSidebarItemPrice(e.target.value)}
+                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '13px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}
+                required
+              />
+              <input 
+                type="number" 
+                placeholder="Qty" 
+                value={sidebarItemQty}
+                onChange={(e) => setSidebarItemQty(e.target.value)}
+                style={{ width: '60px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '13px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}
+                required
+              />
+              <button type="submit" style={{ padding: '8px 15px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
+                ➕ Add
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* BOTTOM SECTION: Totals & Checkout Trigger */}
+        <div style={{ padding: '20px', backgroundColor: '#fafafa' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>Rs.{subtotal.toFixed(2)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (Rs.):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>Rs.{finalTotal.toFixed(2)}</span></div>
