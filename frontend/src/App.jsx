@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-// Point Axios to your computer's IP instead of localhost
+import { QRCodeSVG } from 'qrcode.react';
+
+// Point Axios to your live backend on Render
 axios.defaults.baseURL = 'https://your-tallytap-backend.onrender.com';
-import { QRCodeSVG } from 'qrcode.react'; // New import for QR Code
 
 function App() {
   const [products, setProducts] = useState([]);
@@ -12,10 +13,20 @@ function App() {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   
-  // NEW STATE: Controls the receipt popup
+  // Controls the receipt popup
   const [showReceipt, setShowReceipt] = useState(false);
 
   useEffect(() => {
+    // 1. Failsafe: Programmatically force mobile device screen-scaling properties
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'viewport';
+      document.getElementsByTagName('head')[0].appendChild(meta);
+    }
+    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+
+    // 2. Fetch inventory items
     axios.get('/api/products')
       .then(response => setProducts(response.data))
       .catch(error => console.error("Error loading products:", error));
@@ -64,131 +75,156 @@ function App() {
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const finalTotal = Math.max(0, subtotal - discount);
 
-  // YOUR UPI DETAILS GO HERE
+  // UPI Configuration Details
   const upiId = "yourname@ybl"; // Replace with your actual UPI ID
   const businessName = "TallyTap POS";
-  // Standard Indian UPI Intent Link
   const upiString = `upi://pay?pa=${upiId}&pn=${businessName}&am=${finalTotal.toFixed(2)}&cu=INR`;
 
-  // Trigger Receipt instead of standard Alert
   const handleCheckout = () => {
     setShowReceipt(true);
   };
 
-  // Close receipt and clear cart
   const completeOrder = () => {
     setShowReceipt(false);
     setCart([]);
     setDiscount(0);
   };
 
-  // Print function (Hooks into Android's native print system)
   const handlePrint = () => {
     window.print();
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0 }}>
+    <div className="main-layout" style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0 }}>
       
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
           
-          {/* Printable Area - We assign the ID 'receipt-container' to print only this part */}
-          <div id="receipt-container" style={{ backgroundColor: 'white', width: '350px', padding: '30px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black' }}>
+          {/* Printable Slip Area */}
+          <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
             
-            <h2 style={{ margin: '0 0 15px 0', textAlign: 'center' }}>Jai Shree Ram</h2>
-            <h4 style={{ margin: '0 0 20px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
+            <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px' }}>Jai Shree Ram</h2>
+            <h4 style={{ margin: '0 0 15px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
             
-            <div style={{ width: '100%', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '15px 0', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '10px' }}>
+            <div style={{ width: '100%', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '10px 0', marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>
                 <span>Item</span>
                 <span>Qty</span>
                 <span>Amount</span>
               </div>
               {cart.map(item => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '14px' }}>
-                  <span style={{ flex: 2 }}>{item.name}</span>
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
+                  <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
             </div>
 
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px', marginBottom: '20px' }}>
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', marginBottom: '15px' }}>
               <span>Total Payable:</span>
               <span>₹{finalTotal.toFixed(2)}</span>
             </div>
 
-            <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>Scan to Pay via UPI</p>
-            <div style={{ padding: '10px', border: '2px solid #eee', borderRadius: '8px', marginBottom: '20px' }}>
-               <QRCodeSVG value={upiString} size={150} />
+            <p style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>Scan to Pay via UPI</p>
+            <div style={{ padding: '8px', border: '2px solid #eee', borderRadius: '8px', marginBottom: '15px', backgroundColor: 'white' }}>
+               <QRCodeSVG value={upiString} size={130} />
             </div>
 
-            <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 5px 0' }}>Thank you for visiting!</p>
-            <p style={{ textAlign: 'center', fontSize: '14px', margin: 0, color: '#555' }}>Please visit again.</p>
+            <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px' }}>Thank you for visiting!</p>
+            <p style={{ textAlign: 'center', fontSize: '12px', margin: 0, color: '#555' }}>Please visit again.</p>
 
-            {/* Print & Close Buttons (These are hidden during actual printing via CSS) */}
-            <div className="no-print" style={{ display: 'flex', gap: '10px', marginTop: '30px', width: '100%' }}>
-              <button onClick={handlePrint} style={{ flex: 1, padding: '12px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Print Receipt</button>
-              <button onClick={completeOrder} style={{ flex: 1, padding: '12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Close & Clear</button>
+            {/* Control Buttons Container */}
+            <div className="no-print" style={{ display: 'flex', gap: '10px', marginTop: '20px', width: '100%' }}>
+              <button onClick={handlePrint} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Print Receipt</button>
+              <button onClick={completeOrder} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Close & Clear</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- CSS to Hide Buttons During Printing --- */}
+      {/* --- RESPONSIVE LAYOUT & PRINTER CORE CSS Engine --- */}
       <style>{`
+        /* 1. Thermal Printer Formatter Configurations */
         @media print {
           body * { visibility: hidden; }
           #receipt-container, #receipt-container * { visibility: visible; }
-          #receipt-container { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; box-shadow: none; }
+          #receipt-container { 
+            position: absolute !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            width: 76mm !important; /* Perfect fit margin threshold for standard 80mm printers */
+            margin: 0 !important; 
+            padding: 5mm !important; 
+            border: none !important; 
+            box-shadow: none !important; 
+            display: block !important;
+          }
           .no-print { display: none !important; }
+        }
+
+        /* 2. Responsive UI Screen Layout Rules */
+        @media (max-width: 768px) {
+          .main-layout {
+            flex-direction: column !important;
+            height: auto !important;
+          }
+          .menu-pane {
+            height: auto !important;
+            max-height: 60vh !important;
+          }
+          .cart-pane {
+            width: 100% !important;
+            height: auto !important;
+            border-left: none !important;
+            border-top: 2px solid #ddd !important;
+          }
         }
       `}</style>
 
-      {/* --- REST OF THE APP (Left & Right Panes) --- */}
-      {/* ... (Keep the exact same Left Pane and Right Pane code here from the previous step) ... */}
-      <div style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
+      {/* --- MENU VIEW PANE --- */}
+      <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
           <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Add Custom Item to Menu</h3>
           <form onSubmit={handleAddProduct} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Item Name (e.g., Samosa)" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, backgroundColor: 'white', color: 'black' }} />
-            <input type="number" placeholder="Price (₹)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, backgroundColor: 'white', color: 'black' }} />
+            <input type="text" placeholder="Item Name (e.g., Samosa)" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, minWidth: '150px', backgroundColor: 'white', color: 'black' }} />
+            <input type="number" placeholder="Price (₹)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, minWidth: '80px', backgroundColor: 'white', color: 'black' }} />
             <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>+ Add Item</button>
           </form>
         </div>
-        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333' }}>Menu Items</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px', marginTop: '20px' }}>
+        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>Menu Items</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px', marginTop: '20px' }}>
           {products.map(product => (
-            <div key={product.id} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '25px 15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
+            <div key={product.id} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
               <button onClick={(e) => handleDeleteMenuProduct(e, product.id)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
-              <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#333' }}>{product.name}</div>
+              <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
               <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>₹{product.price}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
+      {/* --- CHECKOUT CART SIDEBAR PANE --- */}
+      <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
           {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty. Tap items to add.</p> : cart.map(item => (
-            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', padding: '15px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '16px' }}>{item.name}</span><button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
-              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                <label style={{ fontSize: '13px', color: '#555' }}>Price: <input type="number" value={item.price} onChange={(e) => updateCartItem(item.id, 'price', e.target.value)} style={{ width: '60px', marginLeft: '5px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
-                <label style={{ fontSize: '13px', color: '#555' }}>Qty: <input type="number" value={item.quantity} onChange={(e) => updateCartItem(item.id, 'quantity', e.target.value)} style={{ width: '45px', marginLeft: '5px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
+            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px' }}>{item.name}</span><button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ fontSize: '13px', color: '#555' }}>Price: <input type="number" value={item.price} onChange={(e) => updateCartItem(item.id, 'price', e.target.value)} style={{ width: '55px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
+                <label style={{ fontSize: '13px', color: '#555' }}>Qty: <input type="number" value={item.quantity} onChange={(e) => updateCartItem(item.id, 'quantity', e.target.value)} style={{ width: '40px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
                 <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
               </div>
             </div>
           ))}
         </div>
         <div style={{ padding: '20px', backgroundColor: '#fafafa', borderTop: '2px solid #eee' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555' }}><span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555' }}><span>Discount (₹):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '22px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>₹{finalTotal.toFixed(2)}</span></div>
-          <button onClick={handleCheckout} disabled={cart.length === 0} style={{ width: '100%', padding: '18px', backgroundColor: cart.length === 0 ? '#cccccc' : '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '18px', fontWeight: 'bold', cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}>Checkout & Print Receipt</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (₹):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>₹{finalTotal.toFixed(2)}</span></div>
+          <button onClick={handleCheckout} disabled={cart.length === 0} style={{ width: '100%', padding: '16px', backgroundColor: cart.length === 0 ? '#cccccc' : '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', fontWeight: 'bold', cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}>Checkout & Print Receipt</button>
         </div>
       </div>
     </div>
