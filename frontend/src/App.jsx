@@ -17,6 +17,11 @@ function App() {
   // Controls the receipt popup
   const [showReceipt, setShowReceipt] = useState(false);
 
+  // 🔥 NEW BLUETOOTH STATES
+  const [bluetoothDevice, setBluetoothDevice] = useState(null);
+  const [printCharacteristic, setPrintCharacteristic] = useState(null);
+  const [btStatus, setBtStatus] = useState("Disconnected");
+
   useEffect(() => {
     // Force mobile device screen-scaling properties
     let meta = document.querySelector('meta[name="viewport"]');
@@ -36,6 +41,95 @@ function App() {
       })
       .catch(error => console.error("Error loading products:", error));
   }, []);
+
+  // 🔥 NEW FUNCTION: Bluetooth Printer Connector Engine
+  const connectBluetoothPrinter = async () => {
+    try {
+      setBtStatus("Scanning...");
+      // Standard Bluetooth GATT Printer UUID service query discovery
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [
+          { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }, // Standard POS/Thermal Printer Profile
+          { namePrefix: 'TP' }, // Covers TP2, TP3, Thermal Printer types
+          { namePrefix: 'MTP' },
+          { namePrefix: 'RP' }
+        ],
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+      });
+
+      setBtStatus("Connecting to GATT Server...");
+      const server = await device.gatt.connect();
+      
+      setBtStatus("Fetching Service Layer...");
+      const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+      
+      setBtStatus("Acquiring Characteristics...");
+      const characteristics = await service.getCharacteristics();
+      
+      // Look for the characteristic that handles Data Writes
+      const writeChar = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+
+      if (writeChar) {
+        setBluetoothDevice(device);
+        setPrintCharacteristic(writeChar);
+        setBtStatus("Connected Successfully! 🎉");
+      } else {
+        setBtStatus("Error: Write channel missing");
+      }
+    } catch (error) {
+      console.error("Bluetooth Connection Failed:", error);
+      setBtStatus(`Failed: ${error.message || error}`);
+    }
+  };
+
+  // 🔥 NEW FUNCTION: Direct RAW Esc/POS Thermal Data Encoder
+  const printViaBluetoothDirectly = async () => {
+    if (!printCharacteristic) {
+      // Fallback to standard system context window if bluetooth is missing
+      window.print();
+      return;
+    }
+
+    try {
+      // ESC/POS Command sequences definitions
+      const initPrinter = '\x1B\x40'; 
+      const centerAlign = '\x1B\x61\x01';
+      const leftAlign = '\x1B\x61\x00';
+      const boldOn = '\x1B\x45\x01';
+      const boldOff = '\x1B\x45\x00';
+      const lineFeed = '\n';
+
+      let receiptText = "";
+      receiptText += initPrinter + centerAlign + boldOn + "Jai Shree Ram" + lineFeed + boldOff;
+      receiptText += "TallyTap POS System" + lineFeed;
+      receiptText += "--------------------------------" + lineFeed;
+      receiptText += leftAlign;
+      
+      cart.forEach(item => {
+        const itemLine = `${item.name} x${item.quantity}`.padEnd(22) + `₹${(item.price * item.quantity).toFixed(0)}`.padStart(10);
+        receiptText += itemLine + lineFeed;
+      });
+
+      receiptText += "--------------------------------" + lineFeed;
+      receiptText += boldOn + `Total Payable:       ₹${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
+      receiptText += lineFeed + centerAlign + "Thank you for visiting!" + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed;
+
+      // Encode output strings into system compatible Uint8Array sequences
+      const encoder = new TextEncoder();
+      const dataBuffer = encoder.encode(receiptText);
+
+      // Raw transmission slice sequencing processing
+      const chunkSize = 20; // Chunk threshold to protect lower hardware buffer streams
+      for (let i = 0; i < dataBuffer.length; i += chunkSize) {
+        const chunk = dataBuffer.slice(i, i + chunkSize);
+        await printCharacteristic.writeValue(chunk);
+      }
+    } catch (e) {
+      console.error("Direct Print pipeline failure: ", e);
+      alert("Bluetooth printing failed. Falling back to native system print layout.");
+      window.print();
+    }
+  };
 
   const handleAddProduct = (e) => {
     e.preventDefault();
@@ -62,7 +156,6 @@ function App() {
     }
   };
 
-  // Har tap par naya row banega, chahe item same ho!
   const addToCart = (product) => {
     const uniqueCartId = typeof crypto !== 'undefined' && crypto.randomUUID 
       ? crypto.randomUUID() 
@@ -78,12 +171,10 @@ function App() {
     setCart(prevCart => [...prevCart, newCartItem]);
   };
 
-  // CartItemId se update karega taaki sirf wahi row change ho
   const updateCartItem = (cartItemId, key, value) => {
     setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
   };
 
-  // Cart se remove karne ke liye bhi cartItemId use hoga
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -102,10 +193,6 @@ function App() {
     setShowReceipt(false);
     setCart([]);
     setDiscount(0);
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   return (
@@ -148,7 +235,9 @@ function App() {
             <p style={{ textAlign: 'center', fontSize: '12px', margin: 0, color: '#555' }}>Please visit again.</p>
 
             <div className="no-print" style={{ display: 'flex', gap: '10px', marginTop: '20px', width: '100%' }}>
-              <button onClick={handlePrint} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Print Receipt</button>
+              <button onClick={printViaBluetoothDirectly} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>
+                {printCharacteristic ? "⚡ Direct BT Print" : "Print Receipt"}
+              </button>
               <button onClick={completeOrder} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Close & Clear</button>
             </div>
           </div>
@@ -158,44 +247,36 @@ function App() {
       {/* --- RESPONSIVE LAYOUT & PRINTER CORE CSS Engine --- */}
       <style>{`
         @media print {
-          /* Hide main interface layouts on final paper compilation */
-          .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay {
-            display: none !important;
-          }
-          
-          body * {
-            visibility: hidden !important;
-          }
-
-          /* Force exact print boundaries onto the targeted block container only */
-          #receipt-container, #receipt-container * {
-            visibility: visible !important;
-          }
-
+          .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay { display: none !important; }
+          body * { visibility: hidden !important; }
+          #receipt-container, #receipt-container * { visibility: visible !important; }
           #receipt-container { 
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 76mm !important; 
-            margin: 0 !important; 
-            padding: 2mm !important; 
-            border: none !important; 
-            box-shadow: none !important;
-            display: block !important;
-            background: white !important;
-            color: black !important;
+            position: absolute !important; left: 0 !important; top: 0 !important; width: 76mm !important; 
+            margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important;
+            display: block !important; background: white !important; color: black !important;
           }
         }
-
         @media (max-width: 768px) {
           .main-layout { flex-direction: column !important; height: auto !important; }
-          .menu-pane { height: auto !important; max-height: 50vh !important; }
+          .menu-pane { height: auto !important; max-height: 45vh !important; }
           .cart-pane { width: 100% !important; height: auto !important; border-left: none !important; border-top: 2px solid #ddd !important; }
         }
       `}</style>
 
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
+        
+        {/* 🔥 NEW CONTROLLERS: Bluetooth Setup Interface Bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
+          <div>
+            <span style={{ fontSize: '14px', color: '#aaa' }}>Printer connection status: </span>
+            <span style={{ fontWeight: 'bold', color: printCharacteristic ? '#28a745' : '#ffc107', fontSize: '14px' }}>{btStatus}</span>
+          </div>
+          <button onClick={connectBluetoothPrinter} style={{ padding: '8px 16px', backgroundColor: printCharacteristic ? '#28a745' : '#6c757d', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
+            {printCharacteristic ? "✓ Printer Paired" : "🔌 Connect BT Printer"}
+          </button>
+        </div>
+
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
           <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Add Product to Menu</h3>
           <form onSubmit={handleAddProduct} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
