@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/purity */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -22,14 +22,22 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Safe and clean runtime dynamic totals
-  const subtotal = Array.isArray(cart) ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0) : 0;
-  const finalTotal = Math.max(0, subtotal - discount);
+  // useMemo layers wraps totals calculations to avoid null pointer runtime re-renders clashing
+  const subtotal = useMemo(() => {
+    if (!Array.isArray(cart)) return 0;
+    return cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+  }, [cart]);
 
-  // Dynamic active safety fallback UPI construction logic 
-  const upiId = "yourname@ybl"; // Replace with your actual UPI ID handle
-  const businessName = "TallyTap POS";
-  const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
+  const finalTotal = useMemo(() => {
+    return Math.max(0, subtotal - discount);
+  }, [subtotal, discount]);
+
+  // UPI String compilation hook
+  const upiString = useMemo(() => {
+    const upiId = "yourname@ybl"; // Replace with your actual UPI ID handle
+    const businessName = "TallyTap POS";
+    return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
+  }, [finalTotal]);
 
   useEffect(() => {
     // Force mobile device screen-scaling properties
@@ -93,7 +101,6 @@ function App() {
         return;
       }
 
-      // ESC/POS hex native buffers bytes sequences mapping
       const initPrinter = '\x1B\x40'; 
       const centerAlign = '\x1B\x61\x01';
       const leftAlign = '\x1B\x61\x00';
@@ -119,7 +126,6 @@ function App() {
       const encoder = new TextEncoder();
       const dataBuffer = encoder.encode(receiptText);
 
-      // Secure chunking transmission pipeline
       const chunkSize = 20; 
       for (let i = 0; i < dataBuffer.length; i += chunkSize) {
         const chunk = dataBuffer.slice(i, i + chunkSize);
