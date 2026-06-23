@@ -18,9 +18,18 @@ function App() {
   const [showReceipt, setShowReceipt] = useState(false);
 
   // BLUETOOTH PRINTER CONFIGURATION STATES
- const [, setBluetoothDevice] = useState(null);
+  const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
+
+  // Calculate Subtotal and Final Total at the top level so they are always available
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const finalTotal = Math.max(0, subtotal - discount);
+
+  // UPI Configuration Setup
+  const upiId = "9556600299@axl"; 
+  const businessName = "TallyTap POS";
+  const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
 
   useEffect(() => {
     // Force mobile device screen-scaling properties
@@ -66,7 +75,7 @@ function App() {
       if (writeChar) {
         setBluetoothDevice(device);
         setPrintCharacteristic(writeChar);
-        setBtStatus(`Connected: ${device.name || "MK Printer"} 🎉`);
+        setBtStatus("Connected 🎉");
       } else {
         setBtStatus("Connected (No write channel)");
       }
@@ -169,16 +178,7 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const finalTotal = Math.max(0, subtotal - discount);
-
-  // Update with your real GPay/PhonePe business handle or personal UPI string
-  const upiId = "9556600299@axl"; 
-  const businessName = "TallyTap POS";
-  const upiString = `upi://pay?pa=${upiId}&pn=${businessName}&am=${finalTotal.toFixed(2)}&cu=INR`;
-
   const handleCheckout = () => {
-    // Forces modal block visibility state context directly
     setShowReceipt(true);
   };
 
@@ -263,7 +263,9 @@ function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
             <span style={{ fontSize: '14px', color: '#aaa' }}>Printer connection status: </span>
-            <span style={{ fontWeight: 'bold', color: printCharacteristic ? '#28a745' : '#ffc107', fontSize: '14px' }}>{btStatus}</span>
+            <span style={{ fontWeight: 'bold', color: printCharacteristic ? '#28a745' : '#ffc107', fontSize: '14px' }}>
+              {printCharacteristic && bluetoothDevice ? `${bluetoothDevice.name || "MK Printer"} Connected 🚀` : btStatus}
+            </span>
           </div>
           <button onClick={connectBluetoothPrinter} style={{ padding: '8px 16px', backgroundColor: printCharacteristic ? '#28a745' : '#6c757d', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
             {printCharacteristic ? "✓ Printer Paired" : "🔌 Connect BT Printer"}
@@ -312,7 +314,6 @@ function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (₹):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>₹{finalTotal.toFixed(2)}</span></div>
-          {/* Note: Kept active hamesha testing block triggers ke liye */}
           <button onClick={handleCheckout} style={{ width: '100%', padding: '16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Checkout & Print Receipt</button>
         </div>
       </div>
