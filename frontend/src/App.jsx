@@ -113,7 +113,7 @@ function App() {
       
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
+        <div id="receipt-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
           <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
             
             <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px' }}>Jai Shree Ram</h2>
@@ -158,20 +158,27 @@ function App() {
       {/* --- RESPONSIVE LAYOUT & PRINTER CORE CSS Engine --- */}
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          #receipt-container, #receipt-container * { visibility: visible; }
+          /* Hide everything outside the overlay container */
+          body > div:not(#receipt-overlay) {
+            display: none !important;
+          }
+          .main-layout, .menu-pane, .cart-pane, .no-print {
+            display: none !important;
+          }
+          
           #receipt-container { 
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
             width: 76mm !important; 
             margin: 0 !important; 
-            padding: 5mm !important; 
+            padding: 4mm !important; 
             border: none !important; 
             box-shadow: none !important; 
             display: block !important;
+            color: black !important;
+            background: white !important;
           }
-          .no-print { display: none !important; }
         }
 
         @media (max-width: 768px) {
