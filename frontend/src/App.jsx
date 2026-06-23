@@ -18,9 +18,10 @@ function App() {
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
   const productGridRef = useRef([]);
   
-  // Refs to manage input fields redirection/focus dynamically
+  // Refs for tracking elements and redirecting focus smoothly
   const priceRefs = useRef({});
   const qtyRefs = useRef({});
+  const itemNameInputRef = useRef(null); // Ref for Name input bar
 
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
@@ -35,7 +36,6 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // Catalog item listing call
   const refreshProductsList = () => {
     axios.get('/api/products')
       .then(response => {
@@ -46,12 +46,10 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   };
 
-  // Create/Add Product inside Menu Catalog list
   const handleAddDirectItemToCart = (e) => {
     e.preventDefault();
     if (!sidebarItemName.trim()) return;
 
-    // Defaulting to 0 price as per your direct instruction
     const newProductPayload = {
       name: sidebarItemName.trim(),
       price: 0 
@@ -64,26 +62,23 @@ function App() {
       })
       .catch(err => {
         console.error("Error saving new item:", err);
-        // Fallback instant UI append if server has delays
         const uniqueId = "custom-" + Date.now();
         setProducts(prev => [{ _id: uniqueId, id: uniqueId, name: sidebarItemName.trim(), price: 0 }, ...prev]);
         setSidebarItemName('');
       });
   };
 
-  // Add Item to active Order List Cart with defaults set to 0
   const addCatalogItemToCart = (product) => {
     const uniqueCartId = String(Date.now() + Math.random());
     const newCartItem = {
       cartItemId: uniqueCartId,
       id: product._id || product.id,
       name: product.name,
-      price: 0,       // 🔥 Default set to 0 instead of product.price
-      quantity: 0     // 🔥 Default set to 0 instead of 1
+      price: 0,       
+      quantity: 0     
     };
     setCart(prevCart => [...prevCart, newCartItem]);
 
-    // Focus on the newly added item's price input field on next render tick
     setTimeout(() => {
       if (priceRefs.current[uniqueCartId]) {
         priceRefs.current[uniqueCartId].focus();
@@ -100,22 +95,25 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Super Robust hardcoded item deletion resolving Ring 10 persistent state
+  // 🔥 FIX: Full database integration delete logic to handle dynamic IDs & Ring 10 persistent state
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product from menu completely?")) {
-      // 1. Instant state filter
-      setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
+      // 1. Optimistic UI updates
+      setProducts(prev => prev.filter(p => {
+        const primaryId = p._id || p.id;
+        return String(primaryId) !== String(productId);
+      }));
       
-      // 2. Direct API firing
+      // 2. Exact string ID matching for API Endpoint mapping
       axios.delete(`/api/products/${productId}`)
         .then(() => {
           setFocusedProductIndex(0);
-          refreshProductsList(); // Confirm sync state from db
+          refreshProductsList(); 
         })
         .catch(err => {
-          console.error("API error while removing item:", err);
+          console.error("API error while removing item from database:", err);
         });
     }
   };
@@ -239,7 +237,7 @@ function App() {
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x43\x06'; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
       receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; 
-      receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; 
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\|51\x30'; 
       receiptText += lineFeed;
 
       receiptText += "Scan QR Code to Pay via UPI" + lineFeed;
@@ -356,13 +354,14 @@ function App() {
           </button>
         </div>
 
-        {/* Name input form only */}
+        {/* Item Input Form Only */}
         <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '25px', border: '1px solid #e8e8e8' }}>
           <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Name</label>
               <input 
                 type="text" 
+                ref={itemNameInputRef} // ✅ Linked input ref to bring focus back here
                 placeholder="Item Name" 
                 value={sidebarItemName}
                 onChange={(e) => setSidebarItemName(e.target.value)}
@@ -430,7 +429,7 @@ function App() {
                 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* ✅ Price Input field configured with Enter redirection focus trigger */}
+                  {/* Price Input Field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
@@ -440,7 +439,6 @@ function App() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          // Redirect focus instantly to the associated quantity input box
                           if (qtyRefs.current[item.cartItemId]) {
                             qtyRefs.current[item.cartItemId].focus();
                             qtyRefs.current[item.cartItemId].select();
@@ -451,7 +449,7 @@ function App() {
                     />
                   </label>
 
-                  {/* ✅ Quantity Input box configured with Enter action completion trigger */}
+                  {/* ✅ Fixed Quantity Input Field with automatic focus diversion to Item Name */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
@@ -461,7 +459,13 @@ function App() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          e.target.blur(); // Triggers save view mapping completion
+                          e.target.blur(); 
+                          
+                          // Focus directly back to top sidebar Item Name field instantly
+                          if (itemNameInputRef.current) {
+                            itemNameInputRef.current.focus();
+                            itemNameInputRef.current.select();
+                          }
                         }
                       }}
                       style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc', outline: 'none' }} 
@@ -475,7 +479,7 @@ function App() {
           })}
         </div>
 
-        {/* BOTTOM SECTION: Totals & Checkout Trigger */}
+        {/* BOTTOM SECTION */}
         <div style={{ padding: '20px', backgroundColor: '#fafafa', borderTop: '2px solid #eee' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>Rs.{subtotal.toFixed(2)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (Rs.):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
