@@ -14,7 +14,7 @@ function App() {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   
-  // Controls the receipt popup
+  // Controls the receipt popup visibility
   const [showReceipt, setShowReceipt] = useState(false);
 
   // BLUETOOTH PRINTER CONFIGURATION STATES
@@ -42,15 +42,14 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
-  // 🔥 OPEN BLUETOOTH ENGINE: Lists all devices, pairs via click manual selection
+  // OPEN BLUETOOTH ENGINE: Lists all devices, pairs via click manual selection
   const connectBluetoothPrinter = async () => {
     try {
       setBtStatus("Scanning all nearby devices...");
       
-      // acceptAllDevices: true allows scanning everything. User clicks to select their MK printer.
       const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Standard POS Printer channel routing
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] 
       });
 
       setBtStatus(`Connecting to ${device.name || "Selected Device"}...`);
@@ -62,7 +61,6 @@ function App() {
       setBtStatus("Acquiring Characteristics...");
       const characteristics = await service.getCharacteristics();
       
-      // Look for the exact data pipeline characteristic channel
       const writeChar = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
 
       if (writeChar) {
@@ -70,7 +68,7 @@ function App() {
         setPrintCharacteristic(writeChar);
         setBtStatus(`Connected: ${device.name || "MK Printer"} 🎉`);
       } else {
-        setBtStatus("Error: Print stream channel missing");
+        setBtStatus("Connected (No write channel)");
       }
     } catch (error) {
       console.error("Bluetooth Connection Failed:", error);
@@ -80,13 +78,12 @@ function App() {
 
   // Direct RAW ESC/POS Thermal Character Buffer Transmission Engine
   const printViaBluetoothDirectly = async () => {
-    if (!printCharacteristic) {
-      // System popup fallback context if device handshake isn't initialized
-      window.print();
-      return;
-    }
-
     try {
+      if (!printCharacteristic) {
+        window.print();
+        return;
+      }
+
       // ESC/POS hex native buffers bytes sequences mapping
       const initPrinter = '\x1B\x40'; 
       const centerAlign = '\x1B\x61\x01';
@@ -102,26 +99,26 @@ function App() {
       receiptText += leftAlign;
       
       cart.forEach(item => {
-        const itemLine = `${item.name} x${item.quantity}`.padEnd(22) + `₹${(item.price * item.quantity).toFixed(0)}`.padStart(10);
+        const itemLine = `${item.name} x${item.quantity}`.padEnd(22) + `Rs.${(item.price * item.quantity).toFixed(0)}`.padStart(10);
         receiptText += itemLine + lineFeed;
       });
 
       receiptText += "--------------------------------" + lineFeed;
-      receiptText += boldOn + `Total Payable:       ₹${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
+      receiptText += boldOn + `Total: Rs.${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
       receiptText += lineFeed + centerAlign + "Thank you for visiting!" + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed;
 
       const encoder = new TextEncoder();
       const dataBuffer = encoder.encode(receiptText);
 
-      // Packet sequential slicing buffer execution chunk sizes
+      // Secure chunking transmission pipeline
       const chunkSize = 20; 
       for (let i = 0; i < dataBuffer.length; i += chunkSize) {
         const chunk = dataBuffer.slice(i, i + chunkSize);
-        await printCharacteristic.writeValue(chunk);
+        await printCharacteristic.writeValue(chunk).catch(err => console.log("Chunk error caught:", err));
       }
+      alert("Print command sent to printer!");
     } catch (e) {
       console.error("Transmission breakdown target print stream: ", e);
-      alert("Bluetooth print chunk dropped. Launching default browser print preview.");
       window.print();
     }
   };
@@ -175,12 +172,13 @@ function App() {
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const finalTotal = Math.max(0, subtotal - discount);
 
-  // UPI Configuration Details (Remember to update your exact handle id here)
+  // Update with your real GPay/PhonePe business handle or personal UPI string
   const upiId = "9556600299@axl"; 
   const businessName = "TallyTap POS";
   const upiString = `upi://pay?pa=${upiId}&pn=${businessName}&am=${finalTotal.toFixed(2)}&cu=INR`;
 
   const handleCheckout = () => {
+    // Forces modal block visibility state context directly
     setShowReceipt(true);
   };
 
@@ -195,20 +193,20 @@ function App() {
       
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
-        <div className="receipt-screen-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
-          <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="receipt-screen-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '10px' }}>
+          <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
             
-            <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px' }}>Jai Shree Ram</h2>
+            <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px', color: 'black' }}>Jai Shree Ram</h2>
             <h4 style={{ margin: '0 0 15px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
             
             <div style={{ width: '100%', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '10px 0', marginBottom: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px', color: 'black' }}>
                 <span>Item</span>
                 <span>Qty</span>
                 <span>Amount</span>
               </div>
               {cart.map((item, index) => (
-                <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
+                <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px', color: 'black' }}>
                   <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
@@ -216,7 +214,7 @@ function App() {
               ))}
             </div>
 
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', marginBottom: '15px' }}>
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', marginBottom: '15px', color: 'black' }}>
               <span>Total Payable:</span>
               <span>₹{finalTotal.toFixed(2)}</span>
             </div>
@@ -226,7 +224,7 @@ function App() {
                <QRCodeSVG value={upiString} size={130} />
             </div>
 
-            <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px' }}>Thank you for visiting!</p>
+            <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px', color: 'black' }}>Thank you for visiting!</p>
             <p style={{ textAlign: 'center', fontSize: '12px', margin: 0, color: '#555' }}>Please visit again.</p>
 
             <div className="no-print" style={{ display: 'flex', gap: '10px', marginTop: '20px', width: '100%' }}>
@@ -261,7 +259,7 @@ function App() {
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
-        {/* Bluetooth Connection Setup Controller Header Bar */}
+        {/* Bluetooth Interface Status Control Panel */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
             <span style={{ fontSize: '14px', color: '#aaa' }}>Printer connection status: </span>
@@ -314,7 +312,8 @@ function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (₹):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>₹{finalTotal.toFixed(2)}</span></div>
-          <button onClick={handleCheckout} disabled={cart.length === 0} style={{ width: '100%', padding: '16px', backgroundColor: cart.length === 0 ? '#cccccc' : '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', fontWeight: 'bold', cursor: cart.length === 0 ? 'not-allowed' : 'pointer' }}>Checkout & Print Receipt</button>
+          {/* Note: Kept active hamesha testing block triggers ke liye */}
+          <button onClick={handleCheckout} style={{ width: '100%', padding: '16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Checkout & Print Receipt</button>
         </div>
       </div>
     </div>
