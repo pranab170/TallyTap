@@ -8,6 +8,11 @@ function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
+
+  // Form states for adding new item
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemPrice, setNewItemPrice] = useState('');
+  
   const [showReceipt, setShowReceipt] = useState(false);
 
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
@@ -36,7 +41,25 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // --- WORKFLOW RE-ORDERING REDIRECTION OPERATIONS (Declared before useEffect Hooks) ---
+  // --- ACTIONS & OPERATIONAL HANDLERS ---
+
+  const handleAddItemToCatalog = (e) => {
+    e.preventDefault();
+    if (!newItemName.trim() || !newItemPrice) return;
+
+    axios.post('/api/products', {
+      name: newItemName.trim(),
+      price: parseFloat(newItemPrice) || 0
+    })
+    .then(response => {
+      if (response.data) {
+        setProducts(prev => [...prev, response.data]);
+        setNewItemName('');
+        setNewItemPrice('');
+      }
+    })
+    .catch(error => console.error("Error adding product to backend:", error));
+  };
 
   const addToCart = (product) => {
     const uniqueCartId = String(Date.now() + Math.random());
@@ -334,6 +357,8 @@ function App() {
 
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
+        
+        {/* TOP BAR: Printer Connectivity */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
             <span style={{ fontSize: '14px', color: '#aaa' }}>Printer status: </span>
@@ -344,6 +369,32 @@ function App() {
           <button onClick={connectBluetoothPrinter} style={{ padding: '8px 16px', backgroundColor: printCharacteristic ? '#28a745' : '#6c757d', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
             {printCharacteristic ? "✓ Printer Paired" : "🔌 Connect BT Printer"}
           </button>
+        </div>
+
+        {/* ADD PRODUCT CATALOG FORM */}
+        <div style={{ backgroundColor: 'white', padding: '15px 20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
+          <h4 style={{ margin: '0 0 12px 0', color: '#333', fontSize: '15px' }}>➕ Add New Item to Menu Catalog</h4>
+          <form onSubmit={handleAddItemToCatalog} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+            <input 
+              type="text" 
+              placeholder="Enter Item Name (e.g. Samosa)" 
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              style={{ flex: 2, padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', backgroundColor: 'white', color: 'black' }}
+              required
+            />
+            <input 
+              type="number" 
+              placeholder="Price (Rs.)" 
+              value={newItemPrice}
+              onChange={(e) => setNewItemPrice(e.target.value)}
+              style={{ flex: 1, padding: '10px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', backgroundColor: 'white', color: 'black' }}
+              required
+            />
+            <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>
+              ➕ Add Product to Menu
+            </button>
+          </form>
         </div>
 
         <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>
