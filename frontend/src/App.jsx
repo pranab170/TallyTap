@@ -22,9 +22,8 @@ function App() {
   // Keyboard navigation grid tracking states
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
   const [activeCartItemId, setActiveCartItemId] = useState(null);
-  const [activeField, setActiveField] = useState(null); // 'price' or 'quantity'
+  const [activeField, setActiveField] = useState(null); 
 
-  // Dynamic input reference tracking containers
   const productGridRef = useRef([]);
   const priceInputRefs = useRef({});
   const qtyInputRefs = useRef({});
@@ -60,15 +59,11 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
-  // Global Keydown Keyboard Handler Navigation Array
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
-      // If modal popup window layout overlay is active, freeze page bindings
       if (showReceipt) return;
-
-      const itemsPerRow = 4; // Adjust matrix grid row scaling factor matching CSS layouts
+      const itemsPerRow = 4; 
       
-      // KEYBOARD ARROW NAVIGATION GRID CONTROL ENGINE (When inside catalog stream view context)
       if (!activeCartItemId) {
         if (e.key === 'ArrowRight') {
           e.preventDefault();
@@ -95,7 +90,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [products, focusedProductIndex, activeCartItemId, showReceipt]);
 
-  // Focus effect controller monitor
   useEffect(() => {
     if (!activeCartItemId && productGridRef.current[focusedProductIndex]) {
       productGridRef.current[focusedProductIndex].focus();
@@ -177,13 +171,12 @@ function App() {
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
       receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; 
-      receiptText += lineFeed;
+      lineFeed;
 
       receiptText += "Scan QR Code to Pay via UPI" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       receiptText += boldOn + "Thank you for visiting!" + boldOff + lineFeed + "Please visit again." + lineFeed + lineFeed;
       
-      // ✅ ADDED: Shop Owner Contacts & Pranab Paul Signature to Thermal Receipt Print Stream
       receiptText += "Contact Us: 9777661498,\n8114677747, 7894377410" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       receiptText += "Created by: Pranab Paul\nContact: 9556600299" + lineFeed + lineFeed + lineFeed + lineFeed;
@@ -214,7 +207,6 @@ function App() {
     
     setCart(prevCart => [...prevCart, newCartItem]);
     
-    // ✅ ENTER PIPELINE REDIRECTION TRACKING TRIGGER: Move focus automatically to price section input field
     setActiveCartItemId(uniqueCartId);
     setActiveField('price');
     setTimeout(() => {
@@ -226,7 +218,6 @@ function App() {
   };
 
   const handlePriceEnter = (cartItemId) => {
-    // ✅ REDIRECT STEP 2: Shift focus from price element array loop directly to item quantity field input row
     setActiveField('quantity');
     setTimeout(() => {
       if (qtyInputRefs.current[cartItemId]) {
@@ -237,7 +228,6 @@ function App() {
   };
 
   const handleQuantityEnter = () => {
-    // ✅ REDIRECT STEP 3: Clear cart focus pipelines tracking references & drop connection routing back to menu index tracker matrix
     setActiveCartItemId(null);
     setActiveField(null);
     setTimeout(() => {
@@ -303,11 +293,10 @@ function App() {
             <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px', color: 'black' }}>Thank you for visiting!</p>
             <p style={{ textAlign: 'center', fontSize: '12px', margin: '0 0 10px 0', color: '#555' }}>Please visit again.</p>
 
-            {/* ✅ HTML UI RENDER SECTION: Contact Us & Created signature metrics logic block */}
             <div style={{ width: '100%', borderTop: '1px dashed #eee', paddingTop: '10px', fontSize: '12px', color: '#333', textAlign: 'center' }}>
               <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Contact Us:</div>
               <div>9777661498, 8114677747, 7894377410</div>
-              <div style={{ borderTop: '1px solid #f9f9f9', marginTop: '10px', paddingTop: '5px', fontSize: '11px', color: '#777', italic: 'true' }}>
+              <div style={{ borderTop: '1px solid #f9f9f9', marginTop: '10px', paddingTop: '5px', fontSize: '11px', color: '#777' }}>
                 Created by: <strong>Pranab Paul</strong> (9556600299)
               </div>
             </div>
@@ -346,7 +335,10 @@ function App() {
           </button>
         </div>
 
-        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>Menu Items (Use Arrows $\uparrow\downarrow\leftarrow\rightarrow$ & Enter)</h2>
+        {/* FIXED: Removed LaTeX formatting code block */}
+        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>
+          Menu Items (Use Arrows ↑ ↓ ← → & Enter)
+        </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '20px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const productId = product.id || product._id || String(idx);
@@ -385,7 +377,6 @@ function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* PRICE INPUT STEP: Pressing enter routes workflow to quantity section */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
@@ -398,7 +389,6 @@ function App() {
                           e.preventDefault();
                           handlePriceEnter(item.cartItemId);
                         } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                          // Allow native input arrows inside field boxes seamlessly
                           e.stopPropagation();
                         }
                       }}
@@ -406,7 +396,6 @@ function App() {
                     />
                   </label>
 
-                  {/* QUANTITY INPUT STEP: Pressing enter clears tracking arrays looping back focused indexes */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
