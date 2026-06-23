@@ -9,10 +9,9 @@ function App() {
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
 
-  // Directly adding custom item inputs inside the sidebar workflow area
+  // Exact UI Input matching state names from your original layout
   const [sidebarItemName, setSidebarItemName] = useState('');
   const [sidebarItemPrice, setSidebarItemPrice] = useState('');
-  const [sidebarItemQty, setSidebarItemQty] = useState('1');
   
   const [showReceipt, setShowReceipt] = useState(false);
 
@@ -37,7 +36,7 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // --- RECONSTRUCTED WORKFLOW: ADD ITEM VIA DIRECT INPUT FIELDS ---
+  // --- WORKFLOW MATCHING YOUR MOBILE DESIGN ---
   const handleAddDirectItemToCart = (e) => {
     e.preventDefault();
     if (!sidebarItemName.trim() || !sidebarItemPrice) return;
@@ -48,18 +47,16 @@ function App() {
       id: "custom-" + Date.now(),
       name: sidebarItemName.trim(),
       price: parseFloat(sidebarItemPrice) || 0,
-      quantity: parseFloat(sidebarItemQty) || 1
+      quantity: 1 // Default quantity to 1 as per original tap behavior
     };
 
     setCart(prevCart => [...prevCart, newCartItem]);
     
-    // Clear inputs for next speed entry
+    // Clear fields instantly for rapid entry
     setSidebarItemName('');
     setSidebarItemPrice('');
-    setSidebarItemQty('1');
   };
 
-  // Quick Action: Adding from Left Catalog directly maps to cart standard injection
   const addCatalogItemToCart = (product) => {
     const uniqueCartId = String(Date.now() + Math.random());
     const newCartItem = {
@@ -117,7 +114,6 @@ function App() {
       if (showReceipt) return;
       const itemsPerRow = 4; 
       
-      // If we are typing in inputs, don't trigger grid arrows navigation
       if (document.activeElement.tagName === 'INPUT') return;
 
       if (e.key === 'ArrowRight') {
@@ -131,7 +127,7 @@ function App() {
         setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + itemsPerRow));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setFocusedProductIndex((prev) => Math.max(0, prev - itemsPerRow));
+        setFocusedProductIndex((prev) => Math.max(0, prev - perRow));
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (products[focusedProductIndex]) {
@@ -146,7 +142,7 @@ function App() {
 
   const connectBluetoothPrinter = async () => {
     try {
-      setBtStatus("Scanning all nearby devices...");
+      setBtStatus("Scanning devices...");
       const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] 
@@ -165,7 +161,7 @@ function App() {
         setBtStatus("Connected (No write channel)");
       }
     } catch (error) {
-      console.error("Bluetooth Connection Failed:", error);
+      console.error(error);
       setBtStatus(`Failed: ${error.message || error}`);
     }
   };
@@ -403,39 +399,43 @@ function App() {
           })}
         </div>
 
-        {/* ✅ THE PERFECT FIT: DIRECT MANUAL INPUT FORM ABOVE CHECKOUT AREA */}
-        <div style={{ padding: '15px 20px', backgroundColor: '#f9f9f9', borderTop: '2px solid #eee', borderBottom: '1px solid #ddd' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px', fontWeight: 'bold' }}>🛒 Direct Entry / Add Quick Item</h4>
-          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input 
-              type="text" 
-              placeholder="Item Name (e.g. Samosa)" 
-              value={sidebarItemName}
-              onChange={(e) => setSidebarItemName(e.target.value)}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '13px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}
-              required
-            />
-            <div style={{ display: 'flex', gap: '10px' }}>
+        {/* ✨ DESIGN MATCHING IMAGE 2 EXACTLY FOR LAPTOP SCREEN ✨ */}
+        <div style={{ padding: '20px', backgroundColor: '#ffffff', borderTop: '2px solid #f0f0f0', borderBottom: '1px solid #e0e0e0' }}>
+          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            
+            {/* Name Input Block */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Name</label>
+              <input 
+                type="text" 
+                placeholder="Item Name" 
+                value={sidebarItemName}
+                onChange={(e) => setSidebarItemName(e.target.value)}
+                style={{ width: '100%', padding: '12px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
+                required
+              />
+            </div>
+
+            {/* Price Input Block */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Price</label>
               <input 
                 type="number" 
-                placeholder="Price (Rs.)" 
+                placeholder="Price" 
                 value={sidebarItemPrice}
                 onChange={(e) => setSidebarItemPrice(e.target.value)}
-                style={{ flex: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '13px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '12px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
                 required
               />
-              <input 
-                type="number" 
-                placeholder="Qty" 
-                value={sidebarItemQty}
-                onChange={(e) => setSidebarItemQty(e.target.value)}
-                style={{ width: '60px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '13px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}
-                required
-              />
-              <button type="submit" style={{ padding: '8px 15px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
-                ➕ Add
-              </button>
             </div>
+
+            {/* Huge Add Item Button from your design */}
+            <button 
+              type="submit" 
+              style={{ width: '100%', padding: '14px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', letterSpacing: '0.5px', marginTop: '4px', textTransform: 'uppercase', boxShadow: '0 2px 4px rgba(0,119,255,0.2)' }}
+            >
+              ADD ITEM
+            </button>
           </form>
         </div>
 
