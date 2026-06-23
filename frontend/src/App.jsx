@@ -17,7 +17,7 @@ function App() {
   const [showReceipt, setShowReceipt] = useState(false);
 
   useEffect(() => {
-    // 1. Failsafe: Programmatically force mobile device screen-scaling properties
+    // Force mobile device screen-scaling properties
     let meta = document.querySelector('meta[name="viewport"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -26,7 +26,7 @@ function App() {
     }
     meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
 
-    // 2. Fetch inventory items
+    // Fetch inventory items
     axios.get('/api/products')
       .then(response => setProducts(response.data))
       .catch(error => console.error("Error loading products:", error));
@@ -34,12 +34,12 @@ function App() {
 
   const handleAddProduct = (e) => {
     e.preventDefault();
-    if (!newItemName || !newItemPrice) return;
+    if (!newItemName) return;
 
     const newProduct = {
       id: Date.now(), 
       name: newItemName,
-      price: parseFloat(newItemPrice) || 0,
+      price: parseFloat(newItemPrice) || 0, // Default price agar daali toh, nahi toh 0
       category: "Custom"
     };
 
@@ -57,20 +57,25 @@ function App() {
     }
   };
 
+  // 🔥 CHANGED WORKFLOW: Har tap par naya row banega, chahe item same ho!
   const addToCart = (product) => {
-    const existing = cart.find(item => item.id === product.id);
-    if (existing) {
-      setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
-    }
+    const newCartItem = {
+      cartItemId: Date.now() + Math.random(), // Unique ID sirf cart row ke liye
+      id: product.id,
+      name: product.name,
+      price: product.price || 0, // Agar menu mein price nahi set ki toh 0 se start hoga
+      quantity: 1
+    };
+    setCart([...cart, newCartItem]);
   };
 
-  const updateCartItem = (id, key, value) => {
-    setCart(cart.map(item => item.id === id ? { ...item, [key]: parseFloat(value) || 0 } : item));
+  // 🔥 CHANGED: Ab yeh cartItemId se update karega taaki sirf wahi row change ho
+  const updateCartItem = (cartItemId, key, value) => {
+    setCart(cart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
   };
 
-  const removeFromCart = (id) => setCart(cart.filter(item => item.id !== id));
+  // 🔥 CHANGED: Cart se remove karne ke liye bhi cartItemId use hoga
+  const removeFromCart = (cartItemId) => setCart(cart.filter(item => item.cartItemId !== cartItemId));
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const finalTotal = Math.max(0, subtotal - discount);
@@ -100,8 +105,6 @@ function App() {
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px' }}>
-          
-          {/* Printable Slip Area */}
           <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
             
             <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px' }}>Jai Shree Ram</h2>
@@ -113,8 +116,8 @@ function App() {
                 <span>Qty</span>
                 <span>Amount</span>
               </div>
-              {cart.map(item => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
+              {cart.map((item, index) => (
+                <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px' }}>
                   <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
@@ -135,7 +138,6 @@ function App() {
             <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px' }}>Thank you for visiting!</p>
             <p style={{ textAlign: 'center', fontSize: '12px', margin: 0, color: '#555' }}>Please visit again.</p>
 
-            {/* Control Buttons Container */}
             <div className="no-print" style={{ display: 'flex', gap: '10px', marginTop: '20px', width: '100%' }}>
               <button onClick={handlePrint} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Print Receipt</button>
               <button onClick={completeOrder} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Close & Clear</button>
@@ -146,7 +148,6 @@ function App() {
 
       {/* --- RESPONSIVE LAYOUT & PRINTER CORE CSS Engine --- */}
       <style>{`
-        /* 1. Thermal Printer Formatter Configurations */
         @media print {
           body * { visibility: hidden; }
           #receipt-container, #receipt-container * { visibility: visible; }
@@ -154,7 +155,7 @@ function App() {
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
-            width: 76mm !important; /* Perfect fit margin threshold for standard 80mm printers */
+            width: 76mm !important; 
             margin: 0 !important; 
             padding: 5mm !important; 
             border: none !important; 
@@ -164,32 +165,20 @@ function App() {
           .no-print { display: none !important; }
         }
 
-        /* 2. Responsive UI Screen Layout Rules */
         @media (max-width: 768px) {
-          .main-layout {
-            flex-direction: column !important;
-            height: auto !important;
-          }
-          .menu-pane {
-            height: auto !important;
-            max-height: 60vh !important;
-          }
-          .cart-pane {
-            width: 100% !important;
-            height: auto !important;
-            border-left: none !important;
-            border-top: 2px solid #ddd !important;
-          }
+          .main-layout { flex-direction: column !important; height: auto !important; }
+          .menu-pane { height: auto !important; max-height: 50vh !important; }
+          .cart-pane { width: 100% !important; height: auto !important; border-left: none !important; border-top: 2px solid #ddd !important; }
         }
       `}</style>
 
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Add Custom Item to Menu</h3>
+          <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Add Product to Menu</h3>
           <form onSubmit={handleAddProduct} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Item Name (e.g., Samosa)" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, minWidth: '150px', backgroundColor: 'white', color: 'black' }} />
-            <input type="number" placeholder="Price (₹)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, minWidth: '80px', backgroundColor: 'white', color: 'black' }} />
+            <input type="text" placeholder="Item Name (e.g., Ring)" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, minWidth: '150px', backgroundColor: 'white', color: 'black' }} />
+            <input type="number" placeholder="Default Price (Optional)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, minWidth: '80px', backgroundColor: 'white', color: 'black' }} />
             <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>+ Add Item</button>
           </form>
         </div>
@@ -199,7 +188,7 @@ function App() {
             <div key={product.id} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
               <button onClick={(e) => handleDeleteMenuProduct(e, product.id)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
               <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
-              <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>₹{product.price}</div>
+              <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `₹${product.price}` : 'Set Price in Cart'}</div>
             </div>
           ))}
         </div>
@@ -209,12 +198,12 @@ function App() {
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty. Tap items to add.</p> : cart.map(item => (
-            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px' }}>{item.name}</span><button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
+          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty. Tap items to add.</p> : cart.map((item, index) => (
+            <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label style={{ fontSize: '13px', color: '#555' }}>Price: <input type="number" value={item.price} onChange={(e) => updateCartItem(item.id, 'price', e.target.value)} style={{ width: '55px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
-                <label style={{ fontSize: '13px', color: '#555' }}>Qty: <input type="number" value={item.quantity} onChange={(e) => updateCartItem(item.id, 'quantity', e.target.value)} style={{ width: '40px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
+                <label style={{ fontSize: '13px', color: '#555' }}>Price: <input type="number" value={item.price || ''} placeholder="0" onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #28a745', fontWeight: 'bold' }} /></label>
+                <label style={{ fontSize: '13px', color: '#555' }}>Qty: <input type="number" value={item.quantity} onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
                 <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
               </div>
             </div>
