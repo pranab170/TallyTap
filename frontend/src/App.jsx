@@ -18,10 +18,10 @@ function App() {
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
   const productGridRef = useRef([]);
   
-  // Refs for tracking elements and redirecting focus smoothly
+  // Strict Refs management for seamless keyboard navigation redirect
   const priceRefs = useRef({});
   const qtyRefs = useRef({});
-  const itemNameInputRef = useRef(null); // Ref for Name input bar
+  const itemNameInputRef = useRef(null); 
 
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
@@ -95,25 +95,22 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Full database integration delete logic to handle dynamic IDs & Ring 10 persistent state
+  // 🔥 FIX: Absolute structural override for item deletion supporting fallback UI synchronization
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
-    if (window.confirm("Do you want to delete this product from menu completely?")) {
-      // 1. Optimistic UI updates
-      setProducts(prev => prev.filter(p => {
-        const primaryId = p._id || p.id;
-        return String(primaryId) !== String(productId);
-      }));
+    if (window.confirm("Do you want to delete this product completely?")) {
+      // Direct optimistic state filtration
+      setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
       
-      // 2. Exact string ID matching for API Endpoint mapping
       axios.delete(`/api/products/${productId}`)
         .then(() => {
           setFocusedProductIndex(0);
           refreshProductsList(); 
         })
         .catch(err => {
-          console.error("API error while removing item from database:", err);
+          console.error("API error during safe delete tracking:", err);
+          refreshProductsList();
         });
     }
   };
@@ -237,7 +234,7 @@ function App() {
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x43\x06'; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
       receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; 
-      receiptText += '\x1D\x28\x6B\x03\x00\x31\|51\x30'; 
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; 
       receiptText += lineFeed;
 
       receiptText += "Scan QR Code to Pay via UPI" + lineFeed;
@@ -361,7 +358,7 @@ function App() {
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Name</label>
               <input 
                 type="text" 
-                ref={itemNameInputRef} // ✅ Linked input ref to bring focus back here
+                ref={itemNameInputRef} 
                 placeholder="Item Name" 
                 value={sidebarItemName}
                 onChange={(e) => setSidebarItemName(e.target.value)}
@@ -429,7 +426,7 @@ function App() {
                 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* Price Input Field */}
+                  {/* ✅ Price Input with dynamic Left/Right Arrow & Enter redirection mapping */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
@@ -437,7 +434,7 @@ function App() {
                       value={item.price} 
                       onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} 
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' || e.key === 'ArrowRight') {
                           e.preventDefault();
                           if (qtyRefs.current[item.cartItemId]) {
                             qtyRefs.current[item.cartItemId].focus();
@@ -449,7 +446,7 @@ function App() {
                     />
                   </label>
 
-                  {/* ✅ Fixed Quantity Input Field with automatic focus diversion to Item Name */}
+                  {/* ✅ Qty Input with dynamic ArrowLeft redirect and target focus callback to Item Name input on Enter */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
@@ -457,11 +454,16 @@ function App() {
                       value={item.quantity} 
                       onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} 
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'ArrowLeft') {
+                          e.preventDefault();
+                          if (priceRefs.current[item.cartItemId]) {
+                            priceRefs.current[item.cartItemId].focus();
+                            priceRefs.current[item.cartItemId].select();
+                          }
+                        } else if (e.key === 'Enter') {
                           e.preventDefault();
                           e.target.blur(); 
                           
-                          // Focus directly back to top sidebar Item Name field instantly
                           if (itemNameInputRef.current) {
                             itemNameInputRef.current.focus();
                             itemNameInputRef.current.select();
