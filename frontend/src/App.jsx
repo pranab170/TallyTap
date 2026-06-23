@@ -1,9 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-with-deps */
 /* eslint-disable react-hooks/purity */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 
-// Point Axios to your live backend on Render
 axios.defaults.baseURL = 'https://tallytap-backend.onrender.com';
 
 function App() {
@@ -13,28 +13,31 @@ function App() {
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
-  
-  // Controls the receipt popup visibility
   const [showReceipt, setShowReceipt] = useState(false);
 
-  // BLUETOOTH PRINTER CONFIGURATION STATES
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Safe and clean runtime dynamic totals
+  // Keyboard navigation grid tracking states
+  const [focusedProductIndex, setFocusedProductIndex] = useState(0);
+  const [activeCartItemId, setActiveCartItemId] = useState(null);
+  const [activeField, setActiveField] = useState(null); // 'price' or 'quantity'
+
+  // Dynamic input reference tracking containers
+  const productGridRef = useRef([]);
+  const priceInputRefs = useRef({});
+  const qtyInputRefs = useRef({});
+
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
     return cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
   }, [cart]);
 
-  const finalTotal = useMemo(() => {
-    return Math.max(0, subtotal - discount);
-  }, [subtotal, discount]);
+  const finalTotal = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
 
-  // UPI String compilation hook
   const upiString = useMemo(() => {
-    const upiId = "9556600299@axl"; // Replace with your actual UPI ID handle
+    const upiId = "9556600299@axl"; 
     const businessName = "TallyTap POS";
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
@@ -57,24 +60,59 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
+  // Global Keydown Keyboard Handler Navigation Array
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      // If modal popup window layout overlay is active, freeze page bindings
+      if (showReceipt) return;
+
+      const itemsPerRow = 4; // Adjust matrix grid row scaling factor matching CSS layouts
+      
+      // KEYBOARD ARROW NAVIGATION GRID CONTROL ENGINE (When inside catalog stream view context)
+      if (!activeCartItemId) {
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + 1));
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setFocusedProductIndex((prev) => Math.max(0, prev - 1));
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + itemsPerRow));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setFocusedProductIndex((prev) => Math.max(0, prev - itemsPerRow));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (products[focusedProductIndex]) {
+            addToCart(products[focusedProductIndex]);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [products, focusedProductIndex, activeCartItemId, showReceipt]);
+
+  // Focus effect controller monitor
+  useEffect(() => {
+    if (!activeCartItemId && productGridRef.current[focusedProductIndex]) {
+      productGridRef.current[focusedProductIndex].focus();
+    }
+  }, [focusedProductIndex, activeCartItemId]);
+
   const connectBluetoothPrinter = async () => {
     try {
       setBtStatus("Scanning all nearby devices...");
-      
       const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] 
       });
-
       setBtStatus(`Connecting to ${device.name || "Selected Device"}...`);
       const server = await device.gatt.connect();
-      
-      setBtStatus("Fetching Service Layer...");
       const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-      
-      setBtStatus("Acquiring Characteristics...");
       const characteristics = await service.getCharacteristics();
-      
       const writeChar = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
 
       if (writeChar) {
@@ -90,7 +128,6 @@ function App() {
     }
   };
 
-  // Direct RAW ESC/POS Thermal Character Buffer Transmission Engine
   const printViaBluetoothDirectly = async () => {
     try {
       if (!printCharacteristic) {
@@ -98,7 +135,6 @@ function App() {
         return;
       }
 
-      // ESC/POS Native Control Command Bytes
       const initPrinter = '\x1B\x40'; 
       const centerAlign = '\x1B\x61\x01';
       const leftAlign = '\x1B\x61\x00';
@@ -111,7 +147,6 @@ function App() {
       receiptText += "TallyTap POS System" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
-      // FIXED: Replaced standard Rupee symbol character mapping with completely safe "Rs." text representation
       receiptText += leftAlign + "Item         Qty  Rate   Amount" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
@@ -120,7 +155,6 @@ function App() {
         const qtyPart = String(item.quantity).padStart(4);
         const ratePart = `${(item.price || 0).toFixed(0)}`.padStart(7);
         const amtPart = `${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(9);
-        
         receiptText += namePart + qtyPart + ratePart + amtPart + lineFeed;
       });
 
@@ -132,25 +166,27 @@ function App() {
       receiptText += `Total Payable: Rs.${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
-      // NATIVE HARDWARE CONTROLLER QR ENGINE DEPLOYMENT 
-      // ESC/POS standard hardware formatting commands sequence to print dynamic QR Codes natively
       const upiPayload = upiString;
       const storeLen = upiPayload.length + 3;
       const pl = storeLen % 256;
       const ph = Math.floor(storeLen / 256);
 
       receiptText += centerAlign;
-      // Native printer hardware setup instructions injection pipeline
       receiptText += '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00'; 
-      receiptText += '\x1D\x28\x6B\x03\x00\x31\x43\x06'; // Set QR module pixel block sizing scale (06 size)
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x43\x06'; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
-      receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; // Stream dynamic bytes
-      receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; // Command target flash memory trigger to release QR raster graphic print
+      receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; 
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; 
       receiptText += lineFeed;
 
       receiptText += "Scan QR Code to Pay via UPI" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
-      receiptText += boldOn + "Thank you for visiting!" + boldOff + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed + lineFeed;
+      receiptText += boldOn + "Thank you for visiting!" + boldOff + lineFeed + "Please visit again." + lineFeed + lineFeed;
+      
+      // ✅ ADDED: Shop Owner Contacts & Pranab Paul Signature to Thermal Receipt Print Stream
+      receiptText += "Contact Us: 9777661498,\n8114677747, 7894377410" + lineFeed;
+      receiptText += "--------------------------------" + lineFeed;
+      receiptText += "Created by: Pranab Paul\nContact: 9556600299" + lineFeed + lineFeed + lineFeed + lineFeed;
 
       const encoder = new TextEncoder();
       const dataBuffer = encoder.encode(receiptText);
@@ -158,44 +194,16 @@ function App() {
       const chunkSize = 20; 
       for (let i = 0; i < dataBuffer.length; i += chunkSize) {
         const chunk = dataBuffer.slice(i, i + chunkSize);
-        await printCharacteristic.writeValue(chunk).catch(err => console.log("Chunk write error:", err));
+        await printCharacteristic.writeValue(chunk).catch(err => console.log(err));
       }
     } catch (e) {
-      console.error("Transmission breakdown target print stream: ", e);
+      console.error(e);
       window.print();
     }
   };
 
-  const handleAddProduct = (e) => {
-    e.preventDefault();
-    if (!newItemName) return;
-
-    const newProduct = {
-      id: String(Date.now() + Math.random()), 
-      name: newItemName,
-      price: parseFloat(newItemPrice) || 0,
-      category: "Custom"
-    };
-
-    setProducts(prevProducts => [...prevProducts, newProduct]);
-    axios.post('/api/products', newProduct).catch(e => console.error(e));
-    setNewItemName('');
-    setNewItemPrice('');
-  };
-
-  const handleDeleteMenuProduct = (e, id) => {
-    e.stopPropagation(); 
-    if(window.confirm("Are you sure you want to delete this item?")) {
-      setProducts(prevProducts => prevProducts.filter(product => (product.id !== id && product._id !== id)));
-      axios.delete(`/api/products/${id}`).catch(e => console.error(e));
-    }
-  };
-
   const addToCart = (product) => {
-    const uniqueCartId = typeof crypto !== 'undefined' && crypto.randomUUID 
-      ? crypto.randomUUID() 
-      : String(Math.random() + Date.now());
-
+    const uniqueCartId = String(Date.now() + Math.random());
     const newCartItem = {
       cartItemId: uniqueCartId,
       id: product.id || product._id,
@@ -203,7 +211,40 @@ function App() {
       price: product.price || 0, 
       quantity: 1
     };
+    
     setCart(prevCart => [...prevCart, newCartItem]);
+    
+    // ✅ ENTER PIPELINE REDIRECTION TRACKING TRIGGER: Move focus automatically to price section input field
+    setActiveCartItemId(uniqueCartId);
+    setActiveField('price');
+    setTimeout(() => {
+      if (priceInputRefs.current[uniqueCartId]) {
+        priceInputRefs.current[uniqueCartId].focus();
+        priceInputRefs.current[uniqueCartId].select();
+      }
+    }, 50);
+  };
+
+  const handlePriceEnter = (cartItemId) => {
+    // ✅ REDIRECT STEP 2: Shift focus from price element array loop directly to item quantity field input row
+    setActiveField('quantity');
+    setTimeout(() => {
+      if (qtyInputRefs.current[cartItemId]) {
+        qtyInputRefs.current[cartItemId].focus();
+        qtyInputRefs.current[cartItemId].select();
+      }
+    }, 50);
+  };
+
+  const handleQuantityEnter = () => {
+    // ✅ REDIRECT STEP 3: Clear cart focus pipelines tracking references & drop connection routing back to menu index tracker matrix
+    setActiveCartItemId(null);
+    setActiveField(null);
+    setTimeout(() => {
+      if (productGridRef.current[focusedProductIndex]) {
+        productGridRef.current[focusedProductIndex].focus();
+      }
+    }, 50);
   };
 
   const updateCartItem = (cartItemId, key, value) => {
@@ -211,16 +252,8 @@ function App() {
   };
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
-
-  const handleCheckout = () => {
-    setShowReceipt(true);
-  };
-
-  const completeOrder = () => {
-    setShowReceipt(false);
-    setCart([]);
-    setDiscount(0);
-  };
+  const handleCheckout = () => setShowReceipt(true);
+  const completeOrder = () => { setShowReceipt(false); setCart([]); setDiscount(0); };
 
   return (
     <div className="main-layout" style={{ display: 'flex', width: '100vw', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#fff', color: '#000' }}>
@@ -259,8 +292,7 @@ function App() {
               </div>
             )}
             <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', borderTop: '1px solid #eee', paddingTop: '5px', marginBottom: '15px', color: 'black' }}>
-              <span>Total Payable:</span>
-              <span>Rs.{finalTotal.toFixed(2)}</span>
+              <span>Total Payable:</span><span>Rs.{finalTotal.toFixed(2)}</span>
             </div>
 
             <p style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>Scan to Pay via UPI</p>
@@ -269,7 +301,16 @@ function App() {
             </div>
 
             <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px', color: 'black' }}>Thank you for visiting!</p>
-            <p style={{ textAlign: 'center', fontSize: '12px', margin: 0, color: '#555' }}>Please visit again.</p>
+            <p style={{ textAlign: 'center', fontSize: '12px', margin: '0 0 10px 0', color: '#555' }}>Please visit again.</p>
+
+            {/* ✅ HTML UI RENDER SECTION: Contact Us & Created signature metrics logic block */}
+            <div style={{ width: '100%', borderTop: '1px dashed #eee', paddingTop: '10px', fontSize: '12px', color: '#333', textAlign: 'center' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Contact Us:</div>
+              <div>9777661498, 8114677747, 7894377410</div>
+              <div style={{ borderTop: '1px solid #f9f9f9', marginTop: '10px', paddingTop: '5px', fontSize: '11px', color: '#777', italic: 'true' }}>
+                Created by: <strong>Pranab Paul</strong> (9556600299)
+              </div>
+            </div>
 
             <div className="no-print" style={{ display: 'flex', gap: '10px', marginTop: '20px', width: '100%' }}>
               <button onClick={printViaBluetoothDirectly} style={{ flex: 1, padding: '12px 6px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>
@@ -287,16 +328,7 @@ function App() {
           .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay { display: none !important; }
           body * { visibility: hidden !important; }
           #receipt-container, #receipt-container * { visibility: visible !important; }
-          #receipt-container { 
-            position: absolute !important; left: 0 !important; top: 0 !important; width: 76mm !important; 
-            margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important;
-            display: block !important; background: white !important; color: black !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .main-layout { flex-direction: column !important; height: auto !important; }
-          .menu-pane { height: auto !important; max-height: 45vh !important; }
-          .cart-pane { width: 100% !important; height: auto !important; border-left: none !important; border-top: 2px solid #ddd !important; }
+          #receipt-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 76mm !important; margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important; display: block !important; background: white !important; color: black !important;}
         }
       `}</style>
 
@@ -314,21 +346,26 @@ function App() {
           </button>
         </div>
 
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Add Product to Menu</h3>
-          <form onSubmit={handleAddProduct} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Item Name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, minWidth: '150px', backgroundColor: 'white', color: 'black' }} />
-            <input type="number" placeholder="Price" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, minWidth: '80px', backgroundColor: 'white', color: 'black' }} />
-            <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>+ Add Item</button>
-          </form>
-        </div>
-        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>Menu Items</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px', marginTop: '20px' }}>
-          {Array.isArray(products) && products.map(product => {
-            const productId = product.id || product._id || String(Math.random());
+        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>Menu Items (Use Arrows $\uparrow\downarrow\leftarrow\rightarrow$ & Enter)</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '20px' }}>
+          {Array.isArray(products) && products.map((product, idx) => {
+            const productId = product.id || product._id || String(idx);
+            const isFocused = focusedProductIndex === idx && !activeCartItemId;
             return (
-              <div key={productId} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
-                <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
+              <div 
+                key={productId} 
+                ref={el => productGridRef.current[idx] = el}
+                tabIndex={0}
+                onClick={() => addToCart(product)} 
+                onFocus={() => setFocusedProductIndex(idx)}
+                style={{ 
+                  position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', 
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', 
+                  border: isFocused ? '3px solid #007BFF' : '1px solid #e0e0e0', color: 'black', outline: 'none',
+                  transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
+                }}
+              >
+                <button onClick={(e) => { e.stopPropagation(); handleDeleteMenuProduct(e, productId); }} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
                 <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Set Price'}</div>
               </div>
@@ -341,16 +378,58 @@ function App() {
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty.</p> : cart.map((item, index) => (
-            <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label style={{ fontSize: '13px', color: '#555' }}>Price: <input type="number" value={item.price || ''} placeholder="0" onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #28a745', fontWeight: 'bold' }} /></label>
-                <label style={{ fontSize: '13px', color: '#555' }}>Qty: <input type="number" value={item.quantity} onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
-                <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>Rs.{(item.price * item.quantity).toFixed(2)}</span>
+          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty.</p> : cart.map((item, index) => {
+            const isItemActive = activeCartItemId === item.cartItemId;
+            return (
+              <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px', backgroundColor: isItemActive ? '#f0f7ff' : 'transparent' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  
+                  {/* PRICE INPUT STEP: Pressing enter routes workflow to quantity section */}
+                  <label style={{ fontSize: '13px', color: '#555' }}>Price: 
+                    <input 
+                      type="number" 
+                      ref={el => priceInputRefs.current[item.cartItemId] = el}
+                      value={item.price || ''} 
+                      placeholder="0" 
+                      onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handlePriceEnter(item.cartItemId);
+                        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                          // Allow native input arrows inside field boxes seamlessly
+                          e.stopPropagation();
+                        }
+                      }}
+                      style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: (isItemActive && activeField === 'price') ? '2px solid #007BFF' : '1px solid #28a745', fontWeight: 'bold', outline: 'none' }} 
+                    />
+                  </label>
+
+                  {/* QUANTITY INPUT STEP: Pressing enter clears tracking arrays looping back focused indexes */}
+                  <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
+                    <input 
+                      type="number" 
+                      ref={el => qtyInputRefs.current[item.cartItemId] = el}
+                      value={item.quantity} 
+                      onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQuantityEnter();
+                        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                          e.stopPropagation();
+                        }
+                      }}
+                      style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: (isItemActive && activeField === 'quantity') ? '2px solid #007BFF' : '1px solid #ccc', outline: 'none' }} 
+                    />
+                  </label>
+                  
+                  <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>Rs.{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div style={{ padding: '20px', backgroundColor: '#fafafa', borderTop: '2px solid #eee' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>Rs.{subtotal.toFixed(2)}</span></div>
