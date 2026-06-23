@@ -22,7 +22,7 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // useMemo layers wraps totals calculations to avoid null pointer runtime re-renders clashing
+  // useMemo layers wraps totals calculations
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
     return cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
@@ -40,7 +40,6 @@ function App() {
   }, [finalTotal]);
 
   useEffect(() => {
-    // Force mobile device screen-scaling properties
     let meta = document.querySelector('meta[name="viewport"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -49,7 +48,6 @@ function App() {
     }
     meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
 
-    // Fetch inventory items
     axios.get('/api/products')
       .then(response => {
         if (response.data && Array.isArray(response.data)) {
@@ -59,7 +57,6 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
-  // OPEN BLUETOOTH ENGINE: Lists all devices, pairs via click manual selection
   const connectBluetoothPrinter = async () => {
     try {
       setBtStatus("Scanning all nearby devices...");
@@ -112,16 +109,34 @@ function App() {
       receiptText += initPrinter + centerAlign + boldOn + "Jai Shree Ram" + lineFeed + boldOff;
       receiptText += "TallyTap POS System" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
-      receiptText += leftAlign;
+      
+      // 32-Column spacing mapping header with per-piece rate
+      // Item(12 chars) Qty(4) Rate(7) Total(9) = 32
+      receiptText += leftAlign + "Item         Qty  Rate   Amount" + lineFeed;
+      receiptText += "--------------------------------" + lineFeed;
       
       cart.forEach(item => {
-        const itemLine = `${item.name} x${item.quantity}`.padEnd(22) + `Rs.${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(10);
-        receiptText += itemLine + lineFeed;
+        const namePart = item.name.substring(0, 11).padEnd(12);
+        const qtyPart = String(item.quantity).padStart(4);
+        const ratePart = `₹${(item.price || 0).toFixed(0)}`.padStart(7);
+        const amtPart = `₹${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(9);
+        
+        receiptText += namePart + qtyPart + ratePart + amtPart + lineFeed;
       });
 
       receiptText += "--------------------------------" + lineFeed;
-      receiptText += boldOn + `Total: Rs.${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
-      receiptText += lineFeed + centerAlign + "Thank you for visiting!" + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed;
+      receiptText += boldOn + `Subtotal: Rs.${subtotal.toFixed(2)}`.padStart(32) + lineFeed;
+      if (discount > 0) {
+        receiptText += `Discount: Rs.${discount.toFixed(2)}`.padStart(32) + lineFeed;
+      }
+      receiptText += `Total Payable: Rs.${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
+      receiptText += "--------------------------------" + lineFeed;
+      
+      // Text-based fallback payment alert on Thermal print
+      receiptText += centerAlign + "Scan QR on Phone Screen to Pay" + lineFeed;
+      receiptText += "UPI ID: " + "yourname@ybl" + lineFeed;
+      receiptText += "--------------------------------" + lineFeed;
+      receiptText += boldOn + "Thank you for visiting!" + boldOff + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed + lineFeed;
 
       const encoder = new TextEncoder();
       const dataBuffer = encoder.encode(receiptText);
@@ -206,28 +221,38 @@ function App() {
             <h4 style={{ margin: '0 0 15px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
             
             <div style={{ width: '100%', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '10px 0', marginBottom: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px', color: 'black' }}>
-                <span>Item</span>
-                <span>Qty</span>
-                <span>Amount</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px', color: 'black' }}>
+                <span style={{ flex: 2 }}>Item</span>
+                <span style={{ flex: 1, textAlign: 'center' }}>Qty</span>
+                <span style={{ flex: 1, textAlign: 'center' }}>Rate</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>Amount</span>
               </div>
               {cart.map((item, index) => (
                 <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px', color: 'black' }}>
                   <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
+                  <span style={{ flex: 1, textAlign: 'center' }}>₹{(item.price || 0).toFixed(0)}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>₹{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
 
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', marginBottom: '15px', color: 'black' }}>
+            <div style={{ width: '100%', fontSize: '14px', marginBottom: '5px', color: 'black', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span>
+            </div>
+            {discount > 0 && (
+              <div style={{ width: '100%', fontSize: '14px', marginBottom: '5px', color: 'red', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Discount:</span><span>-₹{discount.toFixed(2)}</span>
+              </div>
+            )}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', borderTop: '1px solid #eee', paddingTop: '5px', marginBottom: '15px', color: 'black' }}>
               <span>Total Payable:</span>
               <span>₹{finalTotal.toFixed(2)}</span>
             </div>
 
             <p style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>Scan to Pay via UPI</p>
             <div style={{ padding: '8px', border: '2px solid #eee', borderRadius: '8px', marginBottom: '15px', backgroundColor: 'white' }}>
-               <QRCodeSVG value={upiString} size={130} />
+               <QRCodeSVG value={upiString} size={140} />
             </div>
 
             <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0', fontSize: '14px', color: 'black' }}>Thank you for visiting!</p>
@@ -264,13 +289,11 @@ function App() {
 
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
-        
-        {/* Bluetooth Interface Status Control Panel */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
-            <span style={{ fontSize: '14px', color: '#aaa' }}>Printer connection status: </span>
+            <span style={{ fontSize: '14px', color: '#aaa' }}>Printer status: </span>
             <span style={{ fontWeight: 'bold', color: printCharacteristic ? '#28a745' : '#ffc107', fontSize: '14px' }}>
-              {printCharacteristic && bluetoothDevice ? `${bluetoothDevice.name || "MK Printer"} Connected 🚀` : btStatus}
+              {printCharacteristic && bluetoothDevice ? `${bluetoothDevice.name || "Printer"} Connected 🚀` : btStatus}
             </span>
           </div>
           <button onClick={connectBluetoothPrinter} style={{ padding: '8px 16px', backgroundColor: printCharacteristic ? '#28a745' : '#6c757d', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
@@ -281,8 +304,8 @@ function App() {
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '25px' }}>
           <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Add Product to Menu</h3>
           <form onSubmit={handleAddProduct} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Item Name (e.g., Ring)" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, minWidth: '150px', backgroundColor: 'white', color: 'black' }} />
-            <input type="number" placeholder="Default Price (Optional)" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, minWidth: '80px', backgroundColor: 'white', color: 'black' }} />
+            <input type="text" placeholder="Item Name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 2, minWidth: '150px', backgroundColor: 'white', color: 'black' }} />
+            <input type="number" placeholder="Price" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', flex: 1, minWidth: '80px', backgroundColor: 'white', color: 'black' }} />
             <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>+ Add Item</button>
           </form>
         </div>
@@ -294,7 +317,7 @@ function App() {
               <div key={productId} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
                 <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
-                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `₹${product.price}` : 'Set Price in Cart'}</div>
+                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `₹${product.price}` : 'Set Price'}</div>
               </div>
             );
           })}
@@ -305,7 +328,7 @@ function App() {
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty. Tap items to add.</p> : cart.map((item, index) => (
+          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty.</p> : cart.map((item, index) => (
             <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
