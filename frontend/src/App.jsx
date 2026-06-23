@@ -17,7 +17,7 @@ function App() {
   // Controls the receipt popup
   const [showReceipt, setShowReceipt] = useState(false);
 
-  // 🔥 NEW BLUETOOTH STATES
+  // BLUETOOTH PRINTER CONFIGURATION STATES
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
@@ -42,22 +42,18 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
-  // 🔥 NEW FUNCTION: Bluetooth Printer Connector Engine
+  // 🔥 OPEN BLUETOOTH ENGINE: Lists all devices, pairs via click manual selection
   const connectBluetoothPrinter = async () => {
     try {
-      setBtStatus("Scanning...");
-      // Standard Bluetooth GATT Printer UUID service query discovery
+      setBtStatus("Scanning all nearby devices...");
+      
+      // acceptAllDevices: true allows scanning everything. User clicks to select their MK printer.
       const device = await navigator.bluetooth.requestDevice({
-        filters: [
-          { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }, // Standard POS/Thermal Printer Profile
-          { namePrefix: 'TP' }, // Covers TP2, TP3, Thermal Printer types
-          { namePrefix: 'MTP' },
-          { namePrefix: 'RP' }
-        ],
-        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+        acceptAllDevices: true,
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] // Standard POS Printer channel routing
       });
 
-      setBtStatus("Connecting to GATT Server...");
+      setBtStatus(`Connecting to ${device.name || "Selected Device"}...`);
       const server = await device.gatt.connect();
       
       setBtStatus("Fetching Service Layer...");
@@ -66,15 +62,15 @@ function App() {
       setBtStatus("Acquiring Characteristics...");
       const characteristics = await service.getCharacteristics();
       
-      // Look for the characteristic that handles Data Writes
+      // Look for the exact data pipeline characteristic channel
       const writeChar = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
 
       if (writeChar) {
         setBluetoothDevice(device);
         setPrintCharacteristic(writeChar);
-        setBtStatus("Connected Successfully! 🎉");
+        setBtStatus(`Connected: ${device.name || "MK Printer"} 🎉`);
       } else {
-        setBtStatus("Error: Write channel missing");
+        setBtStatus("Error: Print stream channel missing");
       }
     } catch (error) {
       console.error("Bluetooth Connection Failed:", error);
@@ -82,16 +78,16 @@ function App() {
     }
   };
 
-  // 🔥 NEW FUNCTION: Direct RAW Esc/POS Thermal Data Encoder
+  // Direct RAW ESC/POS Thermal Character Buffer Transmission Engine
   const printViaBluetoothDirectly = async () => {
     if (!printCharacteristic) {
-      // Fallback to standard system context window if bluetooth is missing
+      // System popup fallback context if device handshake isn't initialized
       window.print();
       return;
     }
 
     try {
-      // ESC/POS Command sequences definitions
+      // ESC/POS hex native buffers bytes sequences mapping
       const initPrinter = '\x1B\x40'; 
       const centerAlign = '\x1B\x61\x01';
       const leftAlign = '\x1B\x61\x00';
@@ -114,19 +110,18 @@ function App() {
       receiptText += boldOn + `Total Payable:       ₹${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
       receiptText += lineFeed + centerAlign + "Thank you for visiting!" + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed;
 
-      // Encode output strings into system compatible Uint8Array sequences
       const encoder = new TextEncoder();
       const dataBuffer = encoder.encode(receiptText);
 
-      // Raw transmission slice sequencing processing
-      const chunkSize = 20; // Chunk threshold to protect lower hardware buffer streams
+      // Packet sequential slicing buffer execution chunk sizes
+      const chunkSize = 20; 
       for (let i = 0; i < dataBuffer.length; i += chunkSize) {
         const chunk = dataBuffer.slice(i, i + chunkSize);
         await printCharacteristic.writeValue(chunk);
       }
     } catch (e) {
-      console.error("Direct Print pipeline failure: ", e);
-      alert("Bluetooth printing failed. Falling back to native system print layout.");
+      console.error("Transmission breakdown target print stream: ", e);
+      alert("Bluetooth print chunk dropped. Launching default browser print preview.");
       window.print();
     }
   };
@@ -180,8 +175,8 @@ function App() {
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const finalTotal = Math.max(0, subtotal - discount);
 
-  // UPI Configuration Details
-  const upiId = "9556600299@axl"; // Replace with your actual UPI ID
+  // UPI Configuration Details (Remember to update your exact handle id here)
+  const upiId = "9556600299@axl"; 
   const businessName = "TallyTap POS";
   const upiString = `upi://pay?pa=${upiId}&pn=${businessName}&am=${finalTotal.toFixed(2)}&cu=INR`;
 
@@ -266,7 +261,7 @@ function App() {
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
-        {/* 🔥 NEW CONTROLLERS: Bluetooth Setup Interface Bar */}
+        {/* Bluetooth Connection Setup Controller Header Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
             <span style={{ fontSize: '14px', color: '#aaa' }}>Printer connection status: </span>
