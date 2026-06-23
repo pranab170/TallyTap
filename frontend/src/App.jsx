@@ -181,7 +181,7 @@ function App() {
   const finalTotal = Math.max(0, subtotal - discount);
 
   // UPI Configuration Details
-  const upiId = "yourname@ybl"; // Replace with your actual UPI ID
+  const upiId = "9556600299@axl"; // Replace with your actual UPI ID
   const businessName = "TallyTap POS";
   const upiString = `upi://pay?pa=${upiId}&pn=${businessName}&am=${finalTotal.toFixed(2)}&cu=INR`;
 
