@@ -15,10 +15,7 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  const [focusedProductIndex, setFocusedProductIndex] = useState(0);
-  const productGridRef = useRef([]);
-  
-  // Strict Refs management for seamless keyboard navigation redirect
+  // Strict Refs management for input fields auto focus direction
   const priceRefs = useRef({});
   const qtyRefs = useRef({});
   const itemNameInputRef = useRef(null); 
@@ -95,22 +92,20 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Absolute structural override for item deletion supporting fallback UI synchronization
+  // 🔥 FIX: 100% Client-side full sweep override for persistent data removal
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
-      // Direct optimistic state filtration
+      // Direct instant UI cleanup to stop any persistent display clashing
       setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
       
       axios.delete(`/api/products/${productId}`)
         .then(() => {
-          setFocusedProductIndex(0);
           refreshProductsList(); 
         })
         .catch(err => {
-          console.error("API error during safe delete tracking:", err);
-          refreshProductsList();
+          console.error("Backend sync caught background exception:", err);
         });
     }
   };
@@ -127,38 +122,6 @@ function App() {
   useEffect(() => {
     refreshProductsList();
   }, []);
-
-  // Keyboard Navigation Handling for Grid Item Cards
-  useEffect(() => {
-    const handleGlobalKeyDown = (e) => {
-      if (showReceipt) return;
-      const itemsPerRow = 4; 
-      
-      if (document.activeElement.tagName === 'INPUT') return;
-
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + 1));
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        setFocusedProductIndex((prev) => Math.max(0, prev - 1));
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + itemsPerRow));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setFocusedProductIndex((prev) => Math.max(0, prev - itemsPerRow));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (products[focusedProductIndex]) {
-          addCatalogItemToCart(products[focusedProductIndex]);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [products, focusedProductIndex, showReceipt]);
 
   const connectBluetoothPrinter = async () => {
     try {
@@ -382,19 +345,14 @@ function App() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const productId = product._id || product.id || String(idx);
-            const isFocused = focusedProductIndex === idx;
             return (
               <div 
                 key={productId} 
-                ref={el => productGridRef.current[idx] = el}
-                tabIndex={0}
                 onClick={() => addCatalogItemToCart(product)} 
-                onFocus={() => setFocusedProductIndex(idx)}
                 style={{ 
                   position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', 
                   boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', 
-                  border: isFocused ? '3px solid #007BFF' : '1px solid #e0e0e0', color: 'black', outline: 'none',
-                  transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
+                  border: '1px solid #e0e0e0', color: 'black', outline: 'none', transition: 'all 0.15s ease'
                 }}
               >
                 <button 
@@ -426,7 +384,7 @@ function App() {
                 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* ✅ Price Input with dynamic Left/Right Arrow & Enter redirection mapping */}
+                  {/* ✅ Price Input: ArrowRight/Enter jumps focus to Qty field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
@@ -446,7 +404,7 @@ function App() {
                     />
                   </label>
 
-                  {/* ✅ Qty Input with dynamic ArrowLeft redirect and target focus callback to Item Name input on Enter */}
+                  {/* ✅ Qty Input: ArrowLeft goes back to Price, Enter pushes focus straight to left Item Name field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
