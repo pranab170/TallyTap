@@ -18,7 +18,7 @@ function App() {
   const [showReceipt, setShowReceipt] = useState(false);
 
   // BLUETOOTH PRINTER CONFIGURATION STATES
-  const [bluetoothDevice, setBluetoothDevice] = useState(null);
+ const [, setBluetoothDevice] = useState(null);
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
