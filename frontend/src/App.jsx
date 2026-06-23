@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-with-deps */
-/* eslint-disable react-hooks/purity */
 import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
@@ -10,7 +8,6 @@ function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
-
   const [showReceipt, setShowReceipt] = useState(false);
 
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
@@ -38,6 +35,72 @@ function App() {
     const businessName = "TallyTap POS";
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
+
+  // --- WORKFLOW RE-ORDERING REDIRECTION OPERATIONS (Declared before useEffect Hooks) ---
+
+  const addToCart = (product) => {
+    const uniqueCartId = String(Date.now() + Math.random());
+    const newCartItem = {
+      cartItemId: uniqueCartId,
+      id: product.id || product._id,
+      name: product.name,
+      price: product.price || 0, 
+      quantity: 1
+    };
+    
+    setCart(prevCart => [...prevCart, newCartItem]);
+    
+    setActiveCartItemId(uniqueCartId);
+    setActiveField('price');
+    setTimeout(() => {
+      if (priceInputRefs.current[uniqueCartId]) {
+        priceInputRefs.current[uniqueCartId].focus();
+        priceInputRefs.current[uniqueCartId].select();
+      }
+    }, 50);
+  };
+
+  const handlePriceEnter = (cartItemId) => {
+    setActiveField('quantity');
+    setTimeout(() => {
+      if (qtyInputRefs.current[cartItemId]) {
+        qtyInputRefs.current[cartItemId].focus();
+        qtyInputRefs.current[cartItemId].select();
+      }
+    }, 50);
+  };
+
+  const handleQuantityEnter = () => {
+    setActiveCartItemId(null);
+    setActiveField(null);
+    setTimeout(() => {
+      if (productGridRef.current[focusedProductIndex]) {
+        productGridRef.current[focusedProductIndex].focus();
+      }
+    }, 50);
+  };
+
+  const handleDeleteMenuProduct = (e, productId) => {
+    e.stopPropagation();
+    if (window.confirm("Do you want to delete this product from menu?")) {
+      axios.delete(`/api/products/${productId}`)
+        .then(() => {
+          setProducts(prev => prev.filter(p => (p.id || p._id) !== productId));
+          setFocusedProductIndex(0);
+        })
+        .catch(err => console.error("Error deleting product:", err));
+    }
+  };
+
+  const updateCartItem = (cartItemId, key, value) => {
+    setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
+  };
+
+  const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
+  const handleCheckout = () => setShowReceipt(true);
+  const completeOrder = () => { setShowReceipt(false); setCart([]); setDiscount(0); };
+
+  // --- LIFE CYCLE REGISTRATION HOOKS ---
 
   useEffect(() => {
     let meta = document.querySelector('meta[name="viewport"]');
@@ -169,7 +232,7 @@ function App() {
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
       receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; 
-      lineFeed;
+      receiptText += lineFeed;
 
       receiptText += "Scan QR Code to Pay via UPI" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
@@ -192,69 +255,6 @@ function App() {
       window.print();
     }
   };
-
-  const addToCart = (product) => {
-    const uniqueCartId = String(Date.now() + Math.random());
-    const newCartItem = {
-      cartItemId: uniqueCartId,
-      id: product.id || product._id,
-      name: product.name,
-      price: product.price || 0, 
-      quantity: 1
-    };
-    
-    setCart(prevCart => [...prevCart, newCartItem]);
-    
-    setActiveCartItemId(uniqueCartId);
-    setActiveField('price');
-    setTimeout(() => {
-      if (priceInputRefs.current[uniqueCartId]) {
-        priceInputRefs.current[uniqueCartId].focus();
-        priceInputRefs.current[uniqueCartId].select();
-      }
-    }, 50);
-  };
-
-  const handlePriceEnter = (cartItemId) => {
-    setActiveField('quantity');
-    setTimeout(() => {
-      if (qtyInputRefs.current[cartItemId]) {
-        qtyInputRefs.current[cartItemId].focus();
-        qtyInputRefs.current[cartItemId].select();
-      }
-    }, 50);
-  };
-
-  const handleQuantityEnter = () => {
-    setActiveCartItemId(null);
-    setActiveField(null);
-    setTimeout(() => {
-      if (productGridRef.current[focusedProductIndex]) {
-        productGridRef.current[focusedProductIndex].focus();
-      }
-    }, 50);
-  };
-
-  // ✅ FIXED: Added missing menu product delete handler to stop application crashes
-  const handleDeleteMenuProduct = (e, productId) => {
-    e.stopPropagation();
-    if (window.confirm("Do you want to delete this product from menu?")) {
-      axios.delete(`/api/products/${productId}`)
-        .then(() => {
-          setProducts(prev => prev.filter(p => (p.id || p._id) !== productId));
-          setFocusedProductIndex(0);
-        })
-        .catch(err => console.error("Error deleting product:", err));
-    }
-  };
-
-  const updateCartItem = (cartItemId, key, value) => {
-    setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
-  };
-
-  const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
-  const handleCheckout = () => setShowReceipt(true);
-  const completeOrder = () => { setShowReceipt(false); setCart([]); setDiscount(0); };
 
   return (
     <div className="main-layout" style={{ display: 'flex', width: '100vw', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#fff', color: '#000' }}>
@@ -346,7 +346,6 @@ function App() {
           </button>
         </div>
 
-        {/* CLEANED UP: Saaf-suthri simple header text block without boring instructions */}
         <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>
           Menu Catalog
         </h2>
@@ -369,7 +368,6 @@ function App() {
                   transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
                 }}
               >
-                {/* Delete button triggering the newly added handler */}
                 <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
                 <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Set Price'}</div>
