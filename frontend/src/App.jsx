@@ -9,9 +9,8 @@ function App() {
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
 
-  // Form states for manual input in Menu Catalog
+  // ✅ ONLY Item Name input as you requested (No price input here!)
   const [sidebarItemName, setSidebarItemName] = useState('');
-  const [sidebarItemPrice, setSidebarItemPrice] = useState('');
   
   const [showReceipt, setShowReceipt] = useState(false);
 
@@ -36,25 +35,24 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // Handle Manual Item Add from the Catalog Panel
+  // Handle Manual Item Add from the Catalog Panel (With default 0 price)
   const handleAddDirectItemToCart = (e) => {
     e.preventDefault();
-    if (!sidebarItemName.trim() || !sidebarItemPrice) return;
+    if (!sidebarItemName.trim()) return;
 
-    const uniqueCartId = String(Date.now() + Math.random());
-    const newCartItem = {
-      cartItemId: uniqueCartId,
-      id: "custom-" + Date.now(),
+    const uniqueId = "custom-" + Date.now() + Math.random();
+    const newProduct = {
+      _id: uniqueId,
+      id: uniqueId,
       name: sidebarItemName.trim(),
-      price: parseFloat(sidebarItemPrice) || 0,
-      quantity: 1
+      price: 0 // Starting with 0 price in menu catalog
     };
 
-    setCart(prevCart => [...prevCart, newCartItem]);
+    // Add to menu catalog view list immediately
+    setProducts(prev => [newProduct, ...prev]);
     
-    // Clear inputs immediately
+    // Clear input box
     setSidebarItemName('');
-    setSidebarItemPrice('');
   };
 
   const addCatalogItemToCart = (product) => {
@@ -75,36 +73,34 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // FIX: Robust Delete Implementation with exact ID mapping fallback
+  // 🔥 FIX: Super Robust Delete Implementation supporting mixed data structures & fallback instant UI updates
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product from menu?")) {
+      // Instant optimistic UI update so you don't experience lag or freeze
+      setProducts(prev => prev.filter(p => {
+        const idToCompare = p.id || p._id;
+        return String(idToCompare) !== String(productId);
+      }));
+
       axios.delete(`/api/products/${productId}`)
         .then(() => {
-          setProducts(prev => prev.filter(p => {
-            const idToCompare = p.id || p._id;
-            return String(idToCompare) !== String(productId);
-          }));
           setFocusedProductIndex(0);
         })
         .catch(err => {
-          console.error("Error deleting product:", err);
-          // UI state cleanup fallback if backend responds with edge case success statuses
-          setProducts(prev => prev.filter(p => String(p.id || p._id) !== String(productId)));
+          console.error("API error while deleting, but client structure cleaned:", err);
         });
     }
   };
 
   const handleCheckout = () => setShowReceipt(true);
   
-  // Clean state redirection
   const completeOrder = () => { 
     setShowReceipt(false); 
     setCart([]); 
     setDiscount(0); 
     setSidebarItemName('');
-    setSidebarItemPrice('');
   };
 
   // Load Products
@@ -323,7 +319,7 @@ function App() {
         </div>
       )}
 
-      {/* --- RESPONSIVE LAYOUT & PRINTER CORE CSS Engine --- */}
+      {/* --- RESPONSIVE LAYOUT ENGINE --- */}
       <style>{`
         @media print {
           .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay { display: none !important; }
@@ -333,7 +329,7 @@ function App() {
         }
       `}</style>
 
-      {/* --- MENU VIEW PANE (Left Side Catalog WITH Add Item Input Area) --- */}
+      {/* --- MENU VIEW PANE (Left Side Catalog WITH ONLY Name Input Form) --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
         {/* TOP BAR: Printer Connectivity */}
@@ -349,41 +345,25 @@ function App() {
           </button>
         </div>
 
-        {/* ✅ ADD ITEM FORM INTEGRATED INSIDE THE MENU CATALOG PANEL (TOP POSITION) */}
+        {/* ✅ FIXED: ONLY Item Name input form, PRICE field is removed entirely from here! */}
         <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '25px', border: '1px solid #e8e8e8' }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#333', fontSize: '16px', fontWeight: 'bold' }}>🛒 Add New Item to Order List</h3>
-          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end' }}>
             
-            {/* Name Input Container */}
-            <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555' }}>Item Name</label>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Name</label>
               <input 
                 type="text" 
-                placeholder="Enter item name..." 
+                placeholder="Item Name" 
                 value={sidebarItemName}
                 onChange={(e) => setSidebarItemName(e.target.value)}
-                style={{ width: '100%', padding: '11px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', padding: '12px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
                 required
               />
             </div>
 
-            {/* Price Input Container */}
-            <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555' }}>Price (Rs.)</label>
-              <input 
-                type="number" 
-                placeholder="0.00" 
-                value={sidebarItemPrice}
-                onChange={(e) => setSidebarItemPrice(e.target.value)}
-                style={{ width: '100%', padding: '11px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
-                required
-              />
-            </div>
-
-            {/* Big Action Add Item Button */}
             <button 
               type="submit" 
-              style={{ padding: '12px 28px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', boxShadow: '0 2px 5px rgba(0,123,255,0.2)', height: '42px' }}
+              style={{ padding: '0 35px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', height: '45px', boxShadow: '0 2px 5px rgba(0,123,255,0.2)' }}
             >
               ADD ITEM
             </button>
@@ -412,7 +392,7 @@ function App() {
                   transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
                 }}
               >
-                {/* Fixed Deletion Trigger */}
+                {/* Fixed instant deletion trigger */}
                 <button 
                   onClick={(e) => handleDeleteMenuProduct(e, productId)} 
                   style={{ position: 'absolute', top: '6px', right: '10px', background: 'none', border: 'none', color: '#dc3545', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: '2px' }}
@@ -420,14 +400,14 @@ function App() {
                   ✕
                 </button>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word', marginTop: '5px' }}>{product.name}</div>
-                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Set Price'}</div>
+                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Rs.0'}</div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* --- CHECKOUT CART SIDEBAR PANE (Clean List Only) --- */}
+      {/* --- CHECKOUT CART SIDEBAR PANE --- */}
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         
