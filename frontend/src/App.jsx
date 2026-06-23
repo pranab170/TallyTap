@@ -3,8 +3,7 @@ import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 
 // Point Axios to your live backend on Render
-axios.defaults.baseURL = 'https://your-tallytap-backend.onrender.com';
-
+axios.defaults.baseURL = 'https://tallytap-backend.onrender.com';
 function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
