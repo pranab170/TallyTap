@@ -31,8 +31,9 @@ function App() {
 
   const finalTotal = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
 
+  // UPI ID kept exactly at 9556600299@axl
   const upiString = useMemo(() => {
-    const upiId = "yourname@ybl"; 
+    const upiId = "9556600299@axl"; 
     const businessName = "TallyTap POS";
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
@@ -98,18 +99,23 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
+  // 🔥 FIXED: Absolute Client-Side Override (Removes item from list instantly and stops ghost row rendering)
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
-      setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
       
+      // 1. Instant state update so it disappears forever on screen
+      setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
+      setFocusedProductIndex(0);
+      
+      // 2. Pure background call without forcing a database refresh back to UI state
       axios.delete(`/api/products/${productId}`)
         .then(() => {
-          setFocusedProductIndex(0);
+          console.log("Deleted from database successfully.");
         })
         .catch(err => {
-          console.log("Muted background status exception handles.");
+          console.log("Background clear captured exception.");
         });
     }
   };
@@ -127,7 +133,7 @@ function App() {
     refreshProductsList();
   }, []);
 
-  // ✅ REDIRECT ARROW KEY ENGINE: Laptop up, down, left, right navigation maps cleanly 
+  // Redirect Arrow Key Engine for Catalog Cards
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
@@ -233,7 +239,7 @@ function App() {
       receiptText += centerAlign;
       receiptText += '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00'; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x43\x06'; 
-      receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x44\x35\x30'; 
       receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; 
       receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; 
       receiptText += lineFeed;
@@ -242,7 +248,7 @@ function App() {
       receiptText += "--------------------------------" + lineFeed;
       receiptText += boldOn + "Thank you for visiting!" + boldOff + lineFeed + "Please visit again." + lineFeed + lineFeed;
       
-      receiptText += "Contact Us: 9777661498,\n8114677747, 7894377410" + lineFeed;
+      receiptText += "Contact Us: 9777661498,\n8114677747" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       receiptText += "Created by: Pranab Paul\nContact: 9556600299" + lineFeed + lineFeed + lineFeed + lineFeed;
 
@@ -310,7 +316,7 @@ function App() {
 
             <div style={{ width: '100%', borderTop: '1px dashed #eee', paddingTop: '10px', fontSize: '12px', color: '#333', textAlign: 'center' }}>
               <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Contact Us:</div>
-              <div>9777661498, 8114677747, 7894377410</div>
+              <div>9777661498, 8114677747</div>
               <div style={{ borderTop: '1px solid #f9f9f9', marginTop: '10px', paddingTop: '5px', fontSize: '11px', color: '#777' }}>
                 Created by: <strong>Pranab Paul</strong> (9556600299)
               </div>
@@ -325,16 +331,6 @@ function App() {
           </div>
         </div>
       )}
-
-      {/* --- RESPONSIVE LAYOUT ENGINE --- */}
-      <style>{`
-        @media print {
-          .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay { display: none !important; }
-          body * { visibility: hidden !important; }
-          #receipt-container, #receipt-container * { visibility: visible !important; }
-          #receipt-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 76mm !important; margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important; display: block !important; background: white !important; color: black !important;}
-        }
-      `}</style>
 
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
@@ -447,7 +443,7 @@ function App() {
                     />
                   </label>
 
-                  {/* ✅ REDIRECT ON ENTER FIXED: Qty par enter hit karte hi focus seedhe left menu cards matrix par drop hoga, jahan arrow keys dynamically trigger karengi! */}
+                  {/* Quantity Input Field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
@@ -465,7 +461,6 @@ function App() {
                           e.preventDefault();
                           e.target.blur(); 
                           
-                          // Roll focus straight onto the currently highlighted left catalog grid card
                           if (productGridRef.current[focusedProductIndex]) {
                             productGridRef.current[focusedProductIndex].focus();
                           }
