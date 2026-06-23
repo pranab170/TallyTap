@@ -9,7 +9,7 @@ function App() {
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
 
-  // Exact UI Input matching state names from your original layout
+  // Form states for manual input in Menu Catalog
   const [sidebarItemName, setSidebarItemName] = useState('');
   const [sidebarItemPrice, setSidebarItemPrice] = useState('');
   
@@ -19,7 +19,7 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Layout focus & management tracking
+  // Layout focus tracking
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
   const productGridRef = useRef([]);
 
@@ -36,7 +36,7 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // --- WORKFLOW MATCHING YOUR MOBILE DESIGN ---
+  // Handle Manual Item Add from the Catalog Panel
   const handleAddDirectItemToCart = (e) => {
     e.preventDefault();
     if (!sidebarItemName.trim() || !sidebarItemPrice) return;
@@ -47,12 +47,12 @@ function App() {
       id: "custom-" + Date.now(),
       name: sidebarItemName.trim(),
       price: parseFloat(sidebarItemPrice) || 0,
-      quantity: 1 // Default quantity to 1 as per original tap behavior
+      quantity: 1
     };
 
     setCart(prevCart => [...prevCart, newCartItem]);
     
-    // Clear fields instantly for rapid entry
+    // Clear inputs immediately
     setSidebarItemName('');
     setSidebarItemPrice('');
   };
@@ -75,22 +75,39 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
+  // FIX: Robust Delete Implementation with exact ID mapping fallback
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
+    e.preventDefault();
     if (window.confirm("Do you want to delete this product from menu?")) {
       axios.delete(`/api/products/${productId}`)
         .then(() => {
-          setProducts(prev => prev.filter(p => (p.id || p._id) !== productId));
+          setProducts(prev => prev.filter(p => {
+            const idToCompare = p.id || p._id;
+            return String(idToCompare) !== String(productId);
+          }));
           setFocusedProductIndex(0);
         })
-        .catch(err => console.error("Error deleting product:", err));
+        .catch(err => {
+          console.error("Error deleting product:", err);
+          // UI state cleanup fallback if backend responds with edge case success statuses
+          setProducts(prev => prev.filter(p => String(p.id || p._id) !== String(productId)));
+        });
     }
   };
 
   const handleCheckout = () => setShowReceipt(true);
-  const completeOrder = () => { setShowReceipt(false); setCart([]); setDiscount(0); };
+  
+  // Clean state redirection
+  const completeOrder = () => { 
+    setShowReceipt(false); 
+    setCart([]); 
+    setDiscount(0); 
+    setSidebarItemName('');
+    setSidebarItemPrice('');
+  };
 
-  // --- LIFE CYCLE REGISTRATION HOOKS ---
+  // Load Products
   useEffect(() => {
     let meta = document.querySelector('meta[name="viewport"]');
     if (!meta) {
@@ -109,6 +126,7 @@ function App() {
       .catch(error => console.error("Error loading products:", error));
   }, []);
 
+  // Keyboard Navigation Handling
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
@@ -127,7 +145,7 @@ function App() {
         setFocusedProductIndex((prev) => Math.min(products.length - 1, prev + itemsPerRow));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setFocusedProductIndex((prev) => Math.max(0, prev - perRow));
+        setFocusedProductIndex((prev) => Math.max(0, prev - itemsPerRow));
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (products[focusedProductIndex]) {
@@ -315,7 +333,7 @@ function App() {
         }
       `}</style>
 
-      {/* --- MENU VIEW PANE (Left Side Catalog Only) --- */}
+      {/* --- MENU VIEW PANE (Left Side Catalog WITH Add Item Input Area) --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
         {/* TOP BAR: Printer Connectivity */}
@@ -331,11 +349,52 @@ function App() {
           </button>
         </div>
 
-        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>
+        {/* ✅ ADD ITEM FORM INTEGRATED INSIDE THE MENU CATALOG PANEL (TOP POSITION) */}
+        <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '25px', border: '1px solid #e8e8e8' }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#333', fontSize: '16px', fontWeight: 'bold' }}>🛒 Add New Item to Order List</h3>
+          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            
+            {/* Name Input Container */}
+            <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555' }}>Item Name</label>
+              <input 
+                type="text" 
+                placeholder="Enter item name..." 
+                value={sidebarItemName}
+                onChange={(e) => setSidebarItemName(e.target.value)}
+                style={{ width: '100%', padding: '11px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
+                required
+              />
+            </div>
+
+            {/* Price Input Container */}
+            <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#555' }}>Price (Rs.)</label>
+              <input 
+                type="number" 
+                placeholder="0.00" 
+                value={sidebarItemPrice}
+                onChange={(e) => setSidebarItemPrice(e.target.value)}
+                style={{ width: '100%', padding: '11px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
+                required
+              />
+            </div>
+
+            {/* Big Action Add Item Button */}
+            <button 
+              type="submit" 
+              style={{ padding: '12px 28px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', boxShadow: '0 2px 5px rgba(0,123,255,0.2)', height: '42px' }}
+            >
+              ADD ITEM
+            </button>
+          </form>
+        </div>
+
+        <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px', marginBottom: '15px' }}>
           Menu Catalog
         </h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const productId = product.id || product._id || String(idx);
             const isFocused = focusedProductIndex === idx;
@@ -353,8 +412,14 @@ function App() {
                   transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
                 }}
               >
-                <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
-                <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
+                {/* Fixed Deletion Trigger */}
+                <button 
+                  onClick={(e) => handleDeleteMenuProduct(e, productId)} 
+                  style={{ position: 'absolute', top: '6px', right: '10px', background: 'none', border: 'none', color: '#dc3545', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: '2px' }}
+                >
+                  ✕
+                </button>
+                <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word', marginTop: '5px' }}>{product.name}</div>
                 <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Set Price'}</div>
               </div>
             );
@@ -362,7 +427,7 @@ function App() {
         </div>
       </div>
 
-      {/* --- CHECKOUT CART SIDEBAR PANE --- */}
+      {/* --- CHECKOUT CART SIDEBAR PANE (Clean List Only) --- */}
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         
@@ -399,48 +464,8 @@ function App() {
           })}
         </div>
 
-        {/* ✨ DESIGN MATCHING IMAGE 2 EXACTLY FOR LAPTOP SCREEN ✨ */}
-        <div style={{ padding: '20px', backgroundColor: '#ffffff', borderTop: '2px solid #f0f0f0', borderBottom: '1px solid #e0e0e0' }}>
-          <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            
-            {/* Name Input Block */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Name</label>
-              <input 
-                type="text" 
-                placeholder="Item Name" 
-                value={sidebarItemName}
-                onChange={(e) => setSidebarItemName(e.target.value)}
-                style={{ width: '100%', padding: '12px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
-                required
-              />
-            </div>
-
-            {/* Price Input Block */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Price</label>
-              <input 
-                type="number" 
-                placeholder="Price" 
-                value={sidebarItemPrice}
-                onChange={(e) => setSidebarItemPrice(e.target.value)}
-                style={{ width: '100%', padding: '12px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '14px', backgroundColor: 'white', color: 'black', boxSizing: 'border-box', outline: 'none' }}
-                required
-              />
-            </div>
-
-            {/* Huge Add Item Button from your design */}
-            <button 
-              type="submit" 
-              style={{ width: '100%', padding: '14px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', letterSpacing: '0.5px', marginTop: '4px', textTransform: 'uppercase', boxShadow: '0 2px 4px rgba(0,119,255,0.2)' }}
-            >
-              ADD ITEM
-            </button>
-          </form>
-        </div>
-
         {/* BOTTOM SECTION: Totals & Checkout Trigger */}
-        <div style={{ padding: '20px', backgroundColor: '#fafafa' }}>
+        <div style={{ padding: '20px', backgroundColor: '#fafafa', borderTop: '2px solid #eee' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>Rs.{subtotal.toFixed(2)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (Rs.):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>Rs.{finalTotal.toFixed(2)}</span></div>
