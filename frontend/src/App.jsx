@@ -8,19 +8,19 @@ function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
-
-  // ✅ ONLY Item Name input as you requested (No price input here!)
   const [sidebarItemName, setSidebarItemName] = useState('');
-  
   const [showReceipt, setShowReceipt] = useState(false);
 
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Layout focus tracking
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
   const productGridRef = useRef([]);
+  
+  // Refs to manage input fields redirection/focus dynamically
+  const priceRefs = useRef({});
+  const qtyRefs = useRef({});
 
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
@@ -35,61 +35,87 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  // Handle Manual Item Add from the Catalog Panel (With default 0 price)
+  // Catalog item listing call
+  const refreshProductsList = () => {
+    axios.get('/api/products')
+      .then(response => {
+        if (response.data && Array.isArray(response.data)) {
+          setProducts(response.data);
+        }
+      })
+      .catch(error => console.error("Error loading products:", error));
+  };
+
+  // Create/Add Product inside Menu Catalog list
   const handleAddDirectItemToCart = (e) => {
     e.preventDefault();
     if (!sidebarItemName.trim()) return;
 
-    const uniqueId = "custom-" + Date.now() + Math.random();
-    const newProduct = {
-      _id: uniqueId,
-      id: uniqueId,
+    // Defaulting to 0 price as per your direct instruction
+    const newProductPayload = {
       name: sidebarItemName.trim(),
-      price: 0 // Starting with 0 price in menu catalog
+      price: 0 
     };
 
-    // Add to menu catalog view list immediately
-    setProducts(prev => [newProduct, ...prev]);
-    
-    // Clear input box
-    setSidebarItemName('');
+    axios.post('/api/products', newProductPayload)
+      .then(() => {
+        setSidebarItemName('');
+        refreshProductsList();
+      })
+      .catch(err => {
+        console.error("Error saving new item:", err);
+        // Fallback instant UI append if server has delays
+        const uniqueId = "custom-" + Date.now();
+        setProducts(prev => [{ _id: uniqueId, id: uniqueId, name: sidebarItemName.trim(), price: 0 }, ...prev]);
+        setSidebarItemName('');
+      });
   };
 
+  // Add Item to active Order List Cart with defaults set to 0
   const addCatalogItemToCart = (product) => {
     const uniqueCartId = String(Date.now() + Math.random());
     const newCartItem = {
       cartItemId: uniqueCartId,
-      id: product.id || product._id,
+      id: product._id || product.id,
       name: product.name,
-      price: product.price || 0, 
-      quantity: 1
+      price: 0,       // 🔥 Default set to 0 instead of product.price
+      quantity: 0     // 🔥 Default set to 0 instead of 1
     };
     setCart(prevCart => [...prevCart, newCartItem]);
+
+    // Focus on the newly added item's price input field on next render tick
+    setTimeout(() => {
+      if (priceRefs.current[uniqueCartId]) {
+        priceRefs.current[uniqueCartId].focus();
+        priceRefs.current[uniqueCartId].select();
+      }
+    }, 50);
   };
 
   const updateCartItem = (cartItemId, key, value) => {
-    setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
+    setCart(prevCart => prevCart.map(item => 
+      item.cartItemId === cartItemId ? { ...item, [key]: value === '' ? '' : parseFloat(value) || 0 } : item
+    ));
   };
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Super Robust Delete Implementation supporting mixed data structures & fallback instant UI updates
+  // 🔥 FIX: Super Robust hardcoded item deletion resolving Ring 10 persistent state
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
-    if (window.confirm("Do you want to delete this product from menu?")) {
-      // Instant optimistic UI update so you don't experience lag or freeze
-      setProducts(prev => prev.filter(p => {
-        const idToCompare = p.id || p._id;
-        return String(idToCompare) !== String(productId);
-      }));
-
+    if (window.confirm("Do you want to delete this product from menu completely?")) {
+      // 1. Instant state filter
+      setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
+      
+      // 2. Direct API firing
       axios.delete(`/api/products/${productId}`)
         .then(() => {
           setFocusedProductIndex(0);
+          refreshProductsList(); // Confirm sync state from db
         })
         .catch(err => {
-          console.error("API error while deleting, but client structure cleaned:", err);
+          console.error("API error while removing item:", err);
         });
     }
   };
@@ -103,26 +129,11 @@ function App() {
     setSidebarItemName('');
   };
 
-  // Load Products
   useEffect(() => {
-    let meta = document.querySelector('meta[name="viewport"]');
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.name = 'viewport';
-      document.getElementsByTagName('head')[0].appendChild(meta);
-    }
-    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-
-    axios.get('/api/products')
-      .then(response => {
-        if (response.data && Array.isArray(response.data)) {
-          setProducts(response.data);
-        }
-      })
-      .catch(error => console.error("Error loading products:", error));
+    refreshProductsList();
   }, []);
 
-  // Keyboard Navigation Handling
+  // Keyboard Navigation Handling for Grid Item Cards
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
@@ -204,7 +215,7 @@ function App() {
       
       cart.forEach(item => {
         const namePart = item.name.substring(0, 11).padEnd(12);
-        const qtyPart = String(item.quantity).padStart(4);
+        const qtyPart = String(item.quantity || 0).padStart(4);
         const ratePart = `${(item.price || 0).toFixed(0)}`.padStart(7);
         const amtPart = `${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(9);
         receiptText += namePart + qtyPart + ratePart + amtPart + lineFeed;
@@ -274,8 +285,8 @@ function App() {
               {cart.map((item, index) => (
                 <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px', color: 'black' }}>
                   <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
-                  <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
-                  <span style={{ flex: 1, textAlign: 'center' }}>Rs.{(item.price || 0).toFixed(0)}</span>
+                  <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity || 0}</span>
+                  <span style={{ flex: 1, textAlign: 'center' }}>Rs.{(item.price || 0)}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>Rs.{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
                 </div>
               ))}
@@ -329,7 +340,7 @@ function App() {
         }
       `}</style>
 
-      {/* --- MENU VIEW PANE (Left Side Catalog WITH ONLY Name Input Form) --- */}
+      {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
         {/* TOP BAR: Printer Connectivity */}
@@ -345,10 +356,9 @@ function App() {
           </button>
         </div>
 
-        {/* ✅ FIXED: ONLY Item Name input form, PRICE field is removed entirely from here! */}
+        {/* Name input form only */}
         <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '25px', border: '1px solid #e8e8e8' }}>
           <form onSubmit={handleAddDirectItemToCart} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end' }}>
-            
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#444' }}>Name</label>
               <input 
@@ -360,7 +370,6 @@ function App() {
                 required
               />
             </div>
-
             <button 
               type="submit" 
               style={{ padding: '0 35px', backgroundColor: '#007BFF', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', height: '45px', boxShadow: '0 2px 5px rgba(0,123,255,0.2)' }}
@@ -376,7 +385,7 @@ function App() {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
-            const productId = product.id || product._id || String(idx);
+            const productId = product._id || product.id || String(idx);
             const isFocused = focusedProductIndex === idx;
             return (
               <div 
@@ -392,10 +401,9 @@ function App() {
                   transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
                 }}
               >
-                {/* Fixed instant deletion trigger */}
                 <button 
                   onClick={(e) => handleDeleteMenuProduct(e, productId)} 
-                  style={{ position: 'absolute', top: '6px', right: '10px', background: 'none', border: 'none', color: '#dc3545', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: '2px' }}
+                  style={{ position: 'absolute', top: '6px', right: '10px', background: 'none', border: 'none', color: '#dc3545', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: '2px', zIndex: 10 }}
                 >
                   ✕
                 </button>
@@ -411,33 +419,56 @@ function App() {
       <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         
-        {/* Cart Item Scrolling List */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty.</p> : cart.map((item, index) => {
+          {cart.length === 0 ? <p style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>Cart is empty.</p> : cart.map((item) => {
             return (
-              <div key={item.cartItemId || index} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span><button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button></div>
+              <div key={item.cartItemId} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                  <span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span>
+                  <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+                </div>
+                
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
+                  {/* ✅ Price Input field configured with Enter redirection focus trigger */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
-                      value={item.price || ''} 
+                      ref={el => priceRefs.current[item.cartItemId] = el}
+                      value={item.price} 
                       onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          // Redirect focus instantly to the associated quantity input box
+                          if (qtyRefs.current[item.cartItemId]) {
+                            qtyRefs.current[item.cartItemId].focus();
+                            qtyRefs.current[item.cartItemId].select();
+                          }
+                        }
+                      }}
                       style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc', outline: 'none' }} 
                     />
                   </label>
 
+                  {/* ✅ Quantity Input box configured with Enter action completion trigger */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
+                      ref={el => qtyRefs.current[item.cartItemId] = el}
                       value={item.quantity} 
                       onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.target.blur(); // Triggers save view mapping completion
+                        }
+                      }}
                       style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc', outline: 'none' }} 
                     />
                   </label>
                   
-                  <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>Rs.{(item.price * item.quantity).toFixed(2)}</span>
+                  <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>Rs.{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
                 </div>
               </div>
             );
