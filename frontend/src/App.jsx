@@ -16,12 +16,13 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Grid index and core references tracking for seamless laptop arrow control navigation
+  // Laptop arrow navigation configuration index anchors
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
-  const productGridRef = useRef([]);
   
+  const productGridRef = useRef([]);
   const priceRefs = useRef({});
   const qtyRefs = useRef({});
+  const itemNameInputRef = useRef(null);
 
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
@@ -40,7 +41,7 @@ function App() {
     axios.get('/api/products')
       .then(response => {
         if (response.data && Array.isArray(response.data)) {
-          // Clean out invalid database rows filtering out standard static numeric anomalies 
+          // Permanently block historical transient ghost IDs from being rendered
           const cleanData = response.data.filter(p => {
             const checkId = String(p._id || p.id);
             return checkId !== '0' && checkId !== '1' && checkId !== '2' && checkId !== '3';
@@ -48,7 +49,7 @@ function App() {
           setProducts(cleanData);
         }
       })
-      .catch(error => console.error("Catalog synchronize network delay layout down:", error));
+      .catch(error => console.error("Sync error:", error));
   };
 
   const handleAddDirectItemToCatalog = (e) => {
@@ -64,7 +65,7 @@ function App() {
       refreshProductsList();
     })
     .catch(err => {
-      console.error("Manual insertion mapping failure:", err);
+      console.error(err);
       refreshProductsList();
     });
   };
@@ -97,13 +98,10 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 SOLID PERMANENT UI CLEANUP HOOK (Blocks error loops completely)
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
-      
-      // Wipe card instantly from local state
       setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
       
       axios.delete(`/api/products/${productId}`)
@@ -111,7 +109,7 @@ function App() {
           setFocusedProductIndex(0);
         })
         .catch(err => {
-          console.log("Muted background status 500 console log safely inside front-end pipeline layers.");
+          console.log("Muted background status exception handles.");
         });
     }
   };
@@ -129,7 +127,7 @@ function App() {
     refreshProductsList();
   }, []);
 
-  // ✅ REDIRECT WORKFLOW ENGAGEMENT ENGINE: Handles keyboard arrow navigation grids mapping natively
+  // ✅ REDIRECT ARROW KEY ENGINE: Laptop up, down, left, right navigation maps cleanly 
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
@@ -161,7 +159,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [products, focusedProductIndex, showReceipt]);
 
-  // Handle focus return to the targeted row block on matrix updates
   useEffect(() => {
     if (document.activeElement.tagName !== 'INPUT' && productGridRef.current[focusedProductIndex]) {
       productGridRef.current[focusedProductIndex].focus();
@@ -342,7 +339,7 @@ function App() {
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
-        {/* TOP BAR: Printer Connectivity */}
+        {/* TOP BAR */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
             <span style={{ fontSize: '14px', color: '#aaa' }}>Printer status: </span>
@@ -430,7 +427,7 @@ function App() {
                 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* Price Input Block */}
+                  {/* Price Input Field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
@@ -450,7 +447,7 @@ function App() {
                     />
                   </label>
 
-                  {/* ✅ FIXED WORKFLOW DIRECTION: Focus jumps directly to left Menu Catalog block on hitting Enter key */}
+                  {/* ✅ REDIRECT ON ENTER FIXED: Qty par enter hit karte hi focus seedhe left menu cards matrix par drop hoga, jahan arrow keys dynamically trigger karengi! */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
@@ -468,7 +465,7 @@ function App() {
                           e.preventDefault();
                           e.target.blur(); 
                           
-                          // Focus rolls straight onto the left Menu Catalog wrapper block
+                          // Roll focus straight onto the currently highlighted left catalog grid card
                           if (productGridRef.current[focusedProductIndex]) {
                             productGridRef.current[focusedProductIndex].focus();
                           }
