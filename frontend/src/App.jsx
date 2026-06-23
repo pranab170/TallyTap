@@ -31,7 +31,7 @@ function App() {
 
   const finalTotal = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
 
-  // UPI ID kept exactly at 9556600299@axl
+  // UPI ID configurations mapping
   const upiString = useMemo(() => {
     const upiId = "9556600299@axl"; 
     const businessName = "TallyTap POS";
@@ -42,7 +42,6 @@ function App() {
     axios.get('/api/products')
       .then(response => {
         if (response.data && Array.isArray(response.data)) {
-          // Permanently block historical transient ghost IDs from being rendered
           const cleanData = response.data.filter(p => {
             const checkId = String(p._id || p.id);
             return checkId !== '0' && checkId !== '1' && checkId !== '2' && checkId !== '3';
@@ -99,17 +98,13 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIXED: Absolute Client-Side Override (Removes item from list instantly and stops ghost row rendering)
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
-      
-      // 1. Instant state update so it disappears forever on screen
       setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
       setFocusedProductIndex(0);
       
-      // 2. Pure background call without forcing a database refresh back to UI state
       axios.delete(`/api/products/${productId}`)
         .then(() => {
           console.log("Deleted from database successfully.");
@@ -133,7 +128,6 @@ function App() {
     refreshProductsList();
   }, []);
 
-  // Redirect Arrow Key Engine for Catalog Cards
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
@@ -267,8 +261,77 @@ function App() {
   };
 
   return (
-    <div className="main-layout" style={{ display: 'flex', width: '100vw', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#fff', color: '#000' }}>
+    <div className="main-layout">
       
+      {/* ✅ FIXED RESPONSIVE BREAKPOINT CSS ENGINE: Direct auto scaling resolution layout */}
+      <style>{`
+        .main-layout {
+          display: flex;
+          width: 100vw;
+          height: 100vh;
+          font-family: sans-serif;
+          margin: 0;
+          padding: 0;
+          backgroundColor: #fff;
+          color: #000;
+          box-sizing: border-box;
+          overflow: hidden;
+        }
+        .menu-pane {
+          flex: 1;
+          padding: 20px;
+          background-color: #f5f5f5;
+          overflow-y: auto;
+        }
+        .catalog-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+        }
+        .cart-pane {
+          width: 400px;
+          border-left: 2px solid #ddd;
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          background-color: #fff;
+          color: black;
+        }
+        
+        /* 📱 RESPONSIVE PHONE RESOLUTION OVERRIDES */
+        @media (max-width: 1024px) {
+          .main-layout {
+            flex-direction: column !important;
+            overflow-y: auto !important;
+            height: auto !important;
+          }
+          .menu-pane {
+            flex: none !important;
+            width: 100% !important;
+            box-sizing: border-box;
+            overflow-y: visible !important;
+          }
+          .catalog-grid {
+            grid-template-columns: repeat(2, 1fr) !important; /* Perfect 2 columns fit on phone screens */
+            gap: 10px !important;
+          }
+          .cart-pane {
+            width: 100% !important;
+            border-left: none !important;
+            border-top: 2px solid #ddd !important;
+            height: auto !important;
+            box-sizing: border-box;
+          }
+        }
+
+        @media print {
+          .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay { display: none !important; }
+          body * { visibility: hidden !important; }
+          #receipt-container, #receipt-container * { visibility: visible !important; }
+          #receipt-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 76mm !important; margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important; display: block !important; background: white !important; color: black !important;}
+        }
+      `}</style>
+
       {/* --- RECEIPT MODAL OVERLAY --- */}
       {showReceipt && (
         <div className="receipt-screen-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '10px' }}>
@@ -333,7 +396,7 @@ function App() {
       )}
 
       {/* --- MENU VIEW PANE --- */}
-      <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
+      <div className="menu-pane">
         
         {/* TOP BAR */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
@@ -376,7 +439,8 @@ function App() {
           Menu Catalog
         </h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        {/* Dynamic Class Grid Layout Wrapper */}
+        <div className="catalog-grid">
           {Array.isArray(products) && products.map((product, idx) => {
             const productId = product._id || product.id || String(idx);
             const isFocused = focusedProductIndex === idx;
@@ -409,7 +473,7 @@ function App() {
       </div>
 
       {/* --- CHECKOUT CART SIDEBAR PANE --- */}
-      <div className="cart-pane" style={{ width: '400px', borderLeft: '2px solid #ddd', display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#fff', color: 'black' }}>
+      <div className="cart-pane">
         <div style={{ padding: '20px', borderBottom: '2px solid #eee' }}><h3 style={{ margin: 0 }}>Current Order</h3></div>
         
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
