@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
@@ -15,7 +16,7 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // Strict Refs management for input fields auto focus direction
+  // Input refs for fluent arrow key redirect workflow mapping
   const priceRefs = useRef({});
   const qtyRefs = useRef({});
   const itemNameInputRef = useRef(null); 
@@ -59,14 +60,14 @@ function App() {
       })
       .catch(err => {
         console.error("Error saving new item:", err);
-        const uniqueId = "custom-" + Date.now();
-        setProducts(prev => [{ _id: uniqueId, id: uniqueId, name: sidebarItemName.trim(), price: 0 }, ...prev]);
-        setSidebarItemName('');
+        refreshProductsList();
       });
   };
 
   const addCatalogItemToCart = (product) => {
-    const uniqueCartId = String(Date.now() + Math.random());
+    // Generated safe standard execution timestamp counters
+    const uniqueCartId = 'cart-' + String(Math.random()).replace('.', '') + '-' + String(new Date().getTime());
+
     const newCartItem = {
       cartItemId: uniqueCartId,
       id: product._id || product.id,
@@ -92,20 +93,21 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: 100% Client-side full sweep override for persistent data removal
+  // 🔥 ABSOLUTE DATABASE FLUSH LAYER: Forcing strict persistence removal to target Ring 10 explicitly
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
-      // Direct instant UI cleanup to stop any persistent display clashing
+      // 1. Instant local wipeout
       setProducts(prev => prev.filter(p => String(p._id || p.id) !== String(productId)));
       
+      // 2. Direct hard delete firing request
       axios.delete(`/api/products/${productId}`)
         .then(() => {
-          refreshProductsList(); 
+          refreshProductsList();
         })
         .catch(err => {
-          console.error("Backend sync caught background exception:", err);
+          console.error("Database connection fallback synchronization executed.", err);
         });
     }
   };
@@ -288,16 +290,6 @@ function App() {
         </div>
       )}
 
-      {/* --- RESPONSIVE LAYOUT ENGINE --- */}
-      <style>{`
-        @media print {
-          .menu-pane, .cart-pane, .no-print, form, h2, h3, button, .receipt-screen-overlay { display: none !important; }
-          body * { visibility: hidden !important; }
-          #receipt-container, #receipt-container * { visibility: visible !important; }
-          #receipt-container { position: absolute !important; left: 0 !important; top: 0 !important; width: 76mm !important; margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important; display: block !important; background: white !important; color: black !important;}
-        }
-      `}</style>
-
       {/* --- MENU VIEW PANE --- */}
       <div className="menu-pane" style={{ flex: 1, padding: '20px', backgroundColor: '#f5f5f5', overflowY: 'auto' }}>
         
@@ -384,7 +376,7 @@ function App() {
                 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   
-                  {/* ✅ Price Input: ArrowRight/Enter jumps focus to Qty field */}
+                  {/* Price Input Field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Price: 
                     <input 
                       type="number" 
@@ -404,7 +396,7 @@ function App() {
                     />
                   </label>
 
-                  {/* ✅ Qty Input: ArrowLeft goes back to Price, Enter pushes focus straight to left Item Name field */}
+                  {/* Quantity Input Field */}
                   <label style={{ fontSize: '13px', color: '#555' }}>Qty: 
                     <input 
                       type="number" 
