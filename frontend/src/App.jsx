@@ -22,7 +22,7 @@ function App() {
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
   const [btStatus, setBtStatus] = useState("Disconnected");
 
-  // useMemo layers wraps totals calculations
+  // Safe and clean runtime dynamic totals
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
     return cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
@@ -98,6 +98,7 @@ function App() {
         return;
       }
 
+      // ESC/POS Native Control Command Bytes
       const initPrinter = '\x1B\x40'; 
       const centerAlign = '\x1B\x61\x01';
       const leftAlign = '\x1B\x61\x00';
@@ -110,16 +111,15 @@ function App() {
       receiptText += "TallyTap POS System" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
-      // 32-Column spacing mapping header with per-piece rate
-      // Item(12 chars) Qty(4) Rate(7) Total(9) = 32
+      // FIXED: Replaced standard Rupee symbol character mapping with completely safe "Rs." text representation
       receiptText += leftAlign + "Item         Qty  Rate   Amount" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
       cart.forEach(item => {
         const namePart = item.name.substring(0, 11).padEnd(12);
         const qtyPart = String(item.quantity).padStart(4);
-        const ratePart = `₹${(item.price || 0).toFixed(0)}`.padStart(7);
-        const amtPart = `₹${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(9);
+        const ratePart = `${(item.price || 0).toFixed(0)}`.padStart(7);
+        const amtPart = `${((item.price || 0) * (item.quantity || 0)).toFixed(0)}`.padStart(9);
         
         receiptText += namePart + qtyPart + ratePart + amtPart + lineFeed;
       });
@@ -132,9 +132,23 @@ function App() {
       receiptText += `Total Payable: Rs.${finalTotal.toFixed(2)}`.padStart(32) + boldOff + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
-      // Text-based fallback payment alert on Thermal print
-      receiptText += centerAlign + "Scan QR on Phone Screen to Pay" + lineFeed;
-      receiptText += "UPI ID: " + "yourname@ybl" + lineFeed;
+      // NATIVE HARDWARE CONTROLLER QR ENGINE DEPLOYMENT 
+      // ESC/POS standard hardware formatting commands sequence to print dynamic QR Codes natively
+      const upiPayload = upiString;
+      const storeLen = upiPayload.length + 3;
+      const pl = storeLen % 256;
+      const ph = Math.floor(storeLen / 256);
+
+      receiptText += centerAlign;
+      // Native printer hardware setup instructions injection pipeline
+      receiptText += '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00'; 
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x43\x06'; // Set QR module pixel block sizing scale (06 size)
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x45\x30'; 
+      receiptText += String.fromCharCode(29, 40, 107, pl, ph, 49, 80, 48) + upiPayload; // Stream dynamic bytes
+      receiptText += '\x1D\x28\x6B\x03\x00\x31\x51\x30'; // Command target flash memory trigger to release QR raster graphic print
+      receiptText += lineFeed;
+
+      receiptText += "Scan QR Code to Pay via UPI" + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       receiptText += boldOn + "Thank you for visiting!" + boldOff + lineFeed + "Please visit again." + lineFeed + lineFeed + lineFeed + lineFeed;
 
@@ -144,9 +158,8 @@ function App() {
       const chunkSize = 20; 
       for (let i = 0; i < dataBuffer.length; i += chunkSize) {
         const chunk = dataBuffer.slice(i, i + chunkSize);
-        await printCharacteristic.writeValue(chunk).catch(err => console.log("Chunk error caught:", err));
+        await printCharacteristic.writeValue(chunk).catch(err => console.log("Chunk write error:", err));
       }
-      alert("Print command sent to printer!");
     } catch (e) {
       console.error("Transmission breakdown target print stream: ", e);
       window.print();
@@ -221,7 +234,7 @@ function App() {
             <h4 style={{ margin: '0 0 15px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
             
             <div style={{ width: '100%', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '10px 0', marginBottom: '15px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px', color: 'black' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px', color: 'black' }}>
                 <span style={{ flex: 2 }}>Item</span>
                 <span style={{ flex: 1, textAlign: 'center' }}>Qty</span>
                 <span style={{ flex: 1, textAlign: 'center' }}>Rate</span>
@@ -231,23 +244,23 @@ function App() {
                 <div key={item.cartItemId || index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '13px', color: 'black' }}>
                   <span style={{ flex: 2, marginRight: '5px', wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ flex: 1, textAlign: 'center' }}>{item.quantity}</span>
-                  <span style={{ flex: 1, textAlign: 'center' }}>₹{(item.price || 0).toFixed(0)}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>₹{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
+                  <span style={{ flex: 1, textAlign: 'center' }}>Rs.{(item.price || 0).toFixed(0)}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>Rs.{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
 
             <div style={{ width: '100%', fontSize: '14px', marginBottom: '5px', color: 'black', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span>
+              <span>Subtotal:</span><span>Rs.{subtotal.toFixed(2)}</span>
             </div>
             {discount > 0 && (
               <div style={{ width: '100%', fontSize: '14px', marginBottom: '5px', color: 'red', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Discount:</span><span>-₹{discount.toFixed(2)}</span>
+                <span>Discount:</span><span>-Rs.{discount.toFixed(2)}</span>
               </div>
             )}
             <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', borderTop: '1px solid #eee', paddingTop: '5px', marginBottom: '15px', color: 'black' }}>
               <span>Total Payable:</span>
-              <span>₹{finalTotal.toFixed(2)}</span>
+              <span>Rs.{finalTotal.toFixed(2)}</span>
             </div>
 
             <p style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>Scan to Pay via UPI</p>
@@ -317,7 +330,7 @@ function App() {
               <div key={productId} onClick={() => addToCart(product)} style={{ position: 'relative', backgroundColor: 'white', padding: '20px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', textAlign: 'center', cursor: 'pointer', userSelect: 'none', border: '1px solid #e0e0e0', color: 'black' }}>
                 <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }} title="Delete from menu">✕</button>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
-                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `₹${product.price}` : 'Set Price'}</div>
+                <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Set Price'}</div>
               </div>
             );
           })}
@@ -334,15 +347,15 @@ function App() {
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <label style={{ fontSize: '13px', color: '#555' }}>Price: <input type="number" value={item.price || ''} placeholder="0" onChange={(e) => updateCartItem(item.cartItemId, 'price', e.target.value)} style={{ width: '70px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #28a745', fontWeight: 'bold' }} /></label>
                 <label style={{ fontSize: '13px', color: '#555' }}>Qty: <input type="number" value={item.quantity} onChange={(e) => updateCartItem(item.cartItemId, 'quantity', e.target.value)} style={{ width: '45px', marginLeft: '3px', padding: '4px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></label>
-                <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>₹{(item.price * item.quantity).toFixed(2)}</span>
+                <span style={{ marginLeft: 'auto', fontWeight: 'bold', color: '#333' }}>Rs.{(item.price * item.quantity).toFixed(2)}</span>
               </div>
             </div>
           ))}
         </div>
         <div style={{ padding: '20px', backgroundColor: '#fafafa', borderTop: '2px solid #eee' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (₹):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>₹{finalTotal.toFixed(2)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#555', fontSize: '14px' }}><span>Subtotal:</span><span>Rs.{subtotal.toFixed(2)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#555', fontSize: '14px' }}><span>Discount (Rs.):</span><input type="number" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} style={{ width: '80px', textAlign: 'right', padding: '5px', backgroundColor: 'white', color: 'black', border: '1px solid #ccc' }} /></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '20px', borderTop: '1px solid #ddd', paddingTop: '15px', marginBottom: '20px', color: '#333' }}><span>Total:</span><span>Rs.{finalTotal.toFixed(2)}</span></div>
           <button onClick={handleCheckout} style={{ width: '100%', padding: '16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Checkout & Print Receipt</button>
         </div>
       </div>
