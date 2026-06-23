@@ -11,8 +11,6 @@ function App() {
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
 
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemPrice, setNewItemPrice] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
 
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
@@ -36,7 +34,7 @@ function App() {
   const finalTotal = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
 
   const upiString = useMemo(() => {
-    const upiId = "9556600299@axl"; 
+    const upiId = "yourname@ybl"; 
     const businessName = "TallyTap POS";
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
@@ -237,6 +235,19 @@ function App() {
     }, 50);
   };
 
+  // ✅ FIXED: Added missing menu product delete handler to stop application crashes
+  const handleDeleteMenuProduct = (e, productId) => {
+    e.stopPropagation();
+    if (window.confirm("Do you want to delete this product from menu?")) {
+      axios.delete(`/api/products/${productId}`)
+        .then(() => {
+          setProducts(prev => prev.filter(p => (p.id || p._id) !== productId));
+          setFocusedProductIndex(0);
+        })
+        .catch(err => console.error("Error deleting product:", err));
+    }
+  };
+
   const updateCartItem = (cartItemId, key, value) => {
     setCart(prevCart => prevCart.map(item => item.cartItemId === cartItemId ? { ...item, [key]: parseFloat(value) || 0 } : item));
   };
@@ -335,10 +346,11 @@ function App() {
           </button>
         </div>
 
-        {/* FIXED: Removed LaTeX formatting code block */}
+        {/* CLEANED UP: Saaf-suthri simple header text block without boring instructions */}
         <h2 style={{ borderBottom: '2px solid #ddd', paddingBottom: '10px', color: '#333', fontSize: '20px' }}>
-          Menu Items (Use Arrows ↑ ↓ ← → & Enter)
+          Menu Catalog
         </h2>
+        
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '20px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const productId = product.id || product._id || String(idx);
@@ -357,7 +369,8 @@ function App() {
                   transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
                 }}
               >
-                <button onClick={(e) => { e.stopPropagation(); handleDeleteMenuProduct(e, productId); }} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
+                {/* Delete button triggering the newly added handler */}
+                <button onClick={(e) => handleDeleteMenuProduct(e, productId)} style={{ position: 'absolute', top: '5px', right: '8px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
                 <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#333', wordBreak: 'break-word' }}>{product.name}</div>
                 <div style={{ color: '#007BFF', marginTop: '8px', fontWeight: 'bold' }}>{product.price ? `Rs.${product.price}` : 'Set Price'}</div>
               </div>
