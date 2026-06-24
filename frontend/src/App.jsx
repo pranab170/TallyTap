@@ -505,7 +505,8 @@ function App() {
         <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             
-            // 🔥 FIX 1: Unique Stable Key - Ab API load hone ke baad card ka DOM node destroy nahi hoga
+            // 🔥 FIX 1: Stable Key - Claude's uniqueKeyId was changing when the API returned the real ID.
+            // This caused React to destroy the card exactly when you tried to click it!
             const stableKeyId = `item-${idx}-${product.name}`;
             const isFocused = focusedProductIndex === idx;
             
@@ -514,7 +515,7 @@ function App() {
                 key={stableKeyId} 
                 ref={el => productGridRef.current[idx] = el}
                 tabIndex={0}
-                // 🔥 FIX 2: onMouseDown guarantees click fires instantly before any API unmount logic
+                // 🔥 FIX 2: onMouseDown captures the click instantly before DOM can shift or unmount
                 onMouseDown={(e) => {
                   if (!e.target.closest('button')) {
                     addCatalogItemToCart(product);
