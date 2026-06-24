@@ -50,7 +50,7 @@ function App() {
   const finalTotal = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
 
   const upiString = useMemo(() => {
-    const upiId = "9556600299@axl"; 
+    const upiId = "eazypay.590044339@icici"; 
     const businessName = "TallyTap POS";
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
