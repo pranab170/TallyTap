@@ -38,6 +38,7 @@ function App() {
   const [discount, setDiscount] = useState(0);
   const [sidebarItemName, setSidebarItemName] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [printCharacteristic, setPrintCharacteristic] = useState(null);
@@ -125,6 +126,9 @@ function App() {
             }
           }
 
+          // Alphabetical order, A-Z, by name
+          uniqueProducts.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
           setProducts(uniqueProducts);
           // Keep the cache itself in sync with whatever is now showing.
           saveLocalCatalog(uniqueProducts);
@@ -156,7 +160,9 @@ function App() {
     // 1. Instant UI Par Dikhao (Optimistic Update)
     const tempLocalId = `local-${Date.now()}`;
     const newProduct = { _id: tempLocalId, id: tempLocalId, name: newName, price: 0 };
-    setProducts(prev => [newProduct, ...prev]);
+    setProducts(prev => 
+      [newProduct, ...prev].sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    );
     setSidebarItemName('');
 
     // 🛡️ PERSISTENCE FIX: remember it locally so it stays in the app even
@@ -251,6 +257,12 @@ function App() {
   useEffect(() => {
     refreshProductsList();
   }, [refreshProductsList]);
+
+  // Live date/time display for the top bar
+  useEffect(() => {
+    const clockTimer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(clockTimer);
+  }, []);
 
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -544,6 +556,12 @@ function App() {
         {/* TOP BAR */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: '12px 20px', borderRadius: '8px', marginBottom: '20px', color: 'white' }}>
           <div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', lineHeight: 1.3 }}>TallyTap POS</div>
+            <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '6px' }}>
+              {currentDateTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              {' • '}
+              {currentDateTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </div>
             <span style={{ fontSize: '14px', color: '#aaa' }}>Printer status: </span>
             <span style={{ fontWeight: 'bold', color: printCharacteristic ? '#28a745' : '#ffc107', fontSize: '14px' }}>
               {printCharacteristic && bluetoothDevice ? `${bluetoothDevice.name || "Printer"} Connected 🚀` : btStatus}
