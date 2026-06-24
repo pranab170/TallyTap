@@ -52,7 +52,6 @@ function App() {
           const savedBlacklist = JSON.parse(localStorage.getItem('tallytap_deleted_blacklist') || '[]');
           
           const cleanData = response.data.filter(p => {
-            // 🔥 FIX: Use product NAME as ultimate fallback tracking to prevent array index shifting bugs
             const checkId = String(p._id || p.id || p.name);
             return !savedBlacklist.includes(checkId);
           });
@@ -62,16 +61,26 @@ function App() {
       .catch(error => console.error("Sync error:", error));
   };
 
+  // 🔥 FIX: Added Optimistic UI & Unblock Mechanism so adding works instantly
   const handleAddDirectItemToCatalog = (e) => {
     e.preventDefault();
-    if (!sidebarItemName.trim()) return;
+    const newName = sidebarItemName.trim();
+    if (!newName) return;
 
-    axios.post('/api/products', {
-      name: sidebarItemName.trim(),
-      price: 0
-    })
+    // 1. Agar item pehle blacklist hua tha, toh use wapas unblock karo
+    const savedBlacklist = JSON.parse(localStorage.getItem('tallytap_deleted_blacklist') || '[]');
+    const updatedBlacklist = savedBlacklist.filter(id => id !== newName);
+    setBlacklistedIds(updatedBlacklist);
+    localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
+
+    // 2. Instant UI Par Dikhao (Optimistic Update)
+    const tempLocalId = `local-${Date.now()}`;
+    setProducts(prev => [{ _id: tempLocalId, id: tempLocalId, name: newName, price: 0 }, ...prev]);
+    setSidebarItemName('');
+
+    // 3. Backend par bhejo
+    axios.post('/api/products', { name: newName, price: 0 })
     .then(() => {
-      setSidebarItemName('');
       refreshProductsList();
     })
     .catch(err => {
@@ -108,27 +117,22 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Re-engineered Delete Mechanism to stop 500 Errors and Ghost Items completely
   const handleDeleteMenuProduct = (e, product) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
       
-      // 1. Identify product securely (If DB ID is missing, fallback to Name to prevent shift bugs)
       const targetIdStr = String(product._id || product.id || product.name);
 
-      // 2. Blacklist permanently in localStorage
       const updatedBlacklist = [...blacklistedIds, targetIdStr];
       setBlacklistedIds(updatedBlacklist);
       localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
 
-      // 3. Instant UI Removal
       setProducts(prev => prev.filter(p => String(p._id || p.id || p.name) !== targetIdStr));
       setFocusedProductIndex(0);
       
-      // 4. API Request ONLY if a real Database ID exists (Stops the /0 500 error!)
       const realDbId = product._id || product.id;
-      if (realDbId) {
+      if (realDbId && !String(realDbId).startsWith('local-')) {
         axios.delete(`/api/products/${realDbId}`)
           .then(() => console.log("Deleted from database successfully."))
           .catch(err => console.log("Backend 500 bypassed, safely deleted locally."));
@@ -447,7 +451,6 @@ function App() {
                   transform: isFocused ? 'scale(1.03)' : 'scale(1)', transition: 'all 0.15s ease'
                 }}
               >
-                {/* 🔥 FIX: Passed full product object properly to extract fallback Name in delete logic */}
                 <button 
                   onClick={(e) => handleDeleteMenuProduct(e, product)} 
                   style={{ position: 'absolute', top: '6px', right: '10px', background: 'none', border: 'none', color: '#dc3545', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: '2px', zIndex: 10 }}
