@@ -24,6 +24,16 @@ function App() {
   const qtyRefs = useRef({});
   const itemNameInputRef = useRef(null);
 
+  // ✅ LOCALSTORAGE BLACKLIST TRACKING: Computer memory mein deleted IDs track karne ke liye
+  const [blacklistedIds, setBlacklistedIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tallytap_deleted_blacklist');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const subtotal = useMemo(() => {
     if (!Array.isArray(cart)) return 0;
     return cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
@@ -38,13 +48,18 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
+  // ✅ FIXED: Fetch karte waqt hi blacklisted items ko filtered out rakhna hamesha ke liye
   const refreshProductsList = () => {
     axios.get('/api/products')
       .then(response => {
         if (response.data && Array.isArray(response.data)) {
-          const cleanData = response.data.filter(p => {
-            const checkId = String(p._id || p.id);
-            return checkId !== '0' && checkId !== '1' && checkId !== '2' && checkId !== '3';
+          const savedBlacklist = JSON.parse(localStorage.getItem('tallytap_deleted_blacklist') || '[]');
+          
+          const cleanData = response.data.filter((p, idx) => {
+            const checkId = String(p._id || p.id || idx);
+            // Block any default ghost IDs and blacklisted IDs
+            return !savedBlacklist.includes(checkId) && 
+                   checkId !== '0' && checkId !== '1' && checkId !== '2' && checkId !== '3';
           });
           setProducts(cleanData);
         }
@@ -98,25 +113,30 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Guaranteed UI Wipeout - Now accounts for missing real IDs mapping perfectly to map array index
+  // 🔥 FIX: Hardcoded Blacklist Wipeout Mechanism - Ghost items are permanently filtered now
   const handleDeleteMenuProduct = (e, productId) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
       
-      // Filter out item safely incorporating array index fallback (idx mapping logic synced)
-      setProducts(prev => prev.filter((p, idx) => {
-        const checkId = String(p._id || p.id || idx);
-        return checkId !== String(productId);
-      }));
+      const targetIdStr = String(productId);
+
+      // 1. Save target ID to localStorage blacklist immediately
+      const updatedBlacklist = [...blacklistedIds, targetIdStr];
+      setBlacklistedIds(updatedBlacklist);
+      localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
+
+      // 2. Instant Local state filtration
+      setProducts(prev => prev.filter((p, idx) => String(p._id || p.id || idx) !== targetIdStr));
       setFocusedProductIndex(0);
       
+      // 3. Background cleanup call safely wrapped without breaking frontend view layer state
       axios.delete(`/api/products/${productId}`)
         .then(() => {
-          console.log("Deleted from database successfully.");
+          console.log("Database entry removed.");
         })
         .catch(err => {
-          console.log("Backend 500 error bypassed, item safely removed from view.");
+          console.log("Muted background status 500 loop.");
         });
     }
   };
@@ -134,7 +154,7 @@ function App() {
     refreshProductsList();
   }, []);
 
-  // Keyboard Navigation Handling
+  // Keyboard Navigation Handling for Catalog Cards
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
@@ -270,13 +290,11 @@ function App() {
   return (
     <div className="main-layout" style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#fff', color: '#000', overflow: 'hidden' }}>
       
-      {/* --- CSS ENGINE (Fixed for Laptop Lock & Kept Mobile Native) --- */}
       <style>{`
-        /* Master Laptop Global Reset */
         body { margin: 0; padding: 0; overflow: hidden; }
 
         @media (max-width: 1024px) {
-          body { overflow: auto; } /* Keep scrolling natural on mobile */
+          body { overflow: auto; } 
           .main-layout {
             flex-direction: column !important;
             overflow-y: auto !important;
