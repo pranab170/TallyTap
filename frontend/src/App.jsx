@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
@@ -64,7 +63,7 @@ function App() {
           
           const cleanData = response.data.filter(p => {
             const checkId = String(p._id || p.id || p.name);
-            return !savedBlacklist.includes(checkId);
+            return !savedBlacklist.includes(checkId) && !savedBlacklist.includes(p.name);
           });
           setProducts(cleanData);
         }
@@ -72,19 +71,17 @@ function App() {
       .catch(error => console.error("Sync error:", error));
   }, []);
 
-  // 🔥 FIX: Added Optimistic UI so adding works instantly
+  // 🔥 FIX: Re-added Unblock logic so re-adding a deleted item brings it back permanently
   const handleAddDirectItemToCatalog = (e) => {
     e.preventDefault();
     const newName = sidebarItemName.trim();
     if (!newName) return;
 
-    // NOTE: We deliberately do NOT "unblock" newName from the blacklist here
-    // anymore. Legacy items without a real _id can never actually be deleted
-    // from the database (see handleDeleteMenuProduct) - the blacklist is the
-    // ONLY thing hiding them. If typing the same name again removed it from
-    // the blacklist, every old un-deletable item sharing that name would
-    // reappear immediately on the next refresh. Once blacklisted, a name
-    // stays hidden for good - exactly as intended.
+    // Remove the item from blacklist so it stays in the catalog when re-added
+    const savedBlacklist = JSON.parse(localStorage.getItem('tallytap_deleted_blacklist') || '[]');
+    const updatedBlacklist = savedBlacklist.filter(id => id.toLowerCase() !== newName.toLowerCase());
+    setBlacklistedIds(updatedBlacklist);
+    localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
 
     // 1. Instant UI Par Dikhao (Optimistic Update)
     const tempLocalId = `local-${Date.now()}`;
@@ -130,18 +127,22 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
+  // 🔥 FIX: Stronger Delete logic to wipe it perfectly and block it until re-added
   const handleDeleteMenuProduct = (e, product) => {
     e.stopPropagation();
     e.preventDefault();
     if (window.confirm("Do you want to delete this product completely?")) {
       
       const targetIdStr = String(product._id || product.id || product.name);
+      const targetNameStr = String(product.name);
 
-      const updatedBlacklist = [...blacklistedIds, targetIdStr];
+      // Block both the ID and the Exact Name
+      const updatedBlacklist = [...new Set([...blacklistedIds, targetIdStr, targetNameStr])];
       setBlacklistedIds(updatedBlacklist);
       localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
 
-      setProducts(prev => prev.filter(p => String(p._id || p.id || p.name) !== targetIdStr));
+      // Instant UI removal
+      setProducts(prev => prev.filter(p => p.name !== targetNameStr && String(p._id || p.id) !== targetIdStr));
       setFocusedProductIndex(0);
       
       const realDbId = product._id || product.id;
@@ -150,10 +151,6 @@ function App() {
           .then(() => console.log("Deleted from database successfully."))
           .catch(() => console.log("Backend 500 bypassed, safely deleted locally."));
       }
-      // If realDbId isn't a valid ObjectId (missing, "0"/"1" style legacy id,
-      // or a local-temp id), we deliberately skip the network call entirely -
-      // the blacklist above is already what hides it for good, and this is
-      // exactly what stops /api/products/0 from ever being requested.
     }
   };
 
@@ -505,8 +502,7 @@ function App() {
         <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             
-            // 🔥 FIX 1: Stable Key - Claude's uniqueKeyId was changing when the API returned the real ID.
-            // This caused React to destroy the card exactly when you tried to click it!
+            // 🔥 FIX 1: Stable Key
             const stableKeyId = `item-${idx}-${product.name}`;
             const isFocused = focusedProductIndex === idx;
             
@@ -515,7 +511,7 @@ function App() {
                 key={stableKeyId} 
                 ref={el => productGridRef.current[idx] = el}
                 tabIndex={0}
-                // 🔥 FIX 2: onMouseDown captures the click instantly before DOM can shift or unmount
+                // 🔥 FIX 2: onMouseDown captures the click instantly
                 onMouseDown={(e) => {
                   if (!e.target.closest('button')) {
                     addCatalogItemToCart(product);
