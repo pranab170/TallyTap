@@ -493,7 +493,12 @@ function App() {
           <div id="receipt-container" style={{ backgroundColor: 'white', width: '100%', maxWidth: '340px', padding: '20px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'black', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
             
             <h2 style={{ margin: '0 0 10px 0', textAlign: 'center', fontSize: '22px', color: 'black' }}>Jai Shree Ram</h2>
-            <h4 style={{ margin: '0 0 15px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
+            <h4 style={{ margin: '0 0 6px 0', textAlign: 'center', color: '#555' }}>TallyTap POS System</h4>
+            <p style={{ margin: '0 0 15px 0', textAlign: 'center', fontSize: '12px', color: '#888' }}>
+              {currentDateTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              {' • '}
+              {currentDateTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
             
             <div style={{ width: '100%', borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '10px 0', marginBottom: '15px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px', color: 'black' }}>
@@ -602,7 +607,7 @@ function App() {
           Menu Catalog
         </h2>
         
-        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
+        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             
             // Stable Key ensures React doesn't glitch DOM on DB fetch
