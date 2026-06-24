@@ -352,6 +352,10 @@ function App() {
       let receiptText = "";
       receiptText += initPrinter + centerAlign + boldOn + "Jai Shree Ram" + lineFeed + boldOff;
       receiptText += "TallyTap POS System" + lineFeed;
+      const printDateTime = new Date();
+      const printDateStr = printDateTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const printTimeStr = printDateTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      receiptText += `${printDateStr} - ${printTimeStr}` + lineFeed;
       receiptText += "--------------------------------" + lineFeed;
       
       receiptText += leftAlign + "Item         Qty  Rate   Amount" + lineFeed;
@@ -607,7 +611,7 @@ function App() {
           Menu Catalog
         </h2>
         
-        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px' }}>
+        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             
             // Stable Key ensures React doesn't glitch DOM on DB fetch
