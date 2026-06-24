@@ -1,9 +1,14 @@
-/* eslint-disable */
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 
 axios.defaults.baseURL = 'https://tallytap-backend.onrender.com';
+
+// Matches a real MongoDB ObjectId (24 hex chars). Static/legacy products that
+// lack a proper _id (or only have an array-index style id like "0", "1"...)
+// fail this check, so they never get sent to the DELETE endpoint - this is
+// what stops /api/products/0 from ever firing and 500'ing.
+const isValidMongoId = (id) => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id);
 
 function App() {
   const [products, setProducts] = useState([]);
@@ -19,6 +24,11 @@ function App() {
   const [focusedProductIndex, setFocusedProductIndex] = useState(0);
   
   const productGridRef = useRef([]);
+  // NEW: ref to the catalog grid's container div. Used to read the live
+  // computed `grid-template-columns` value so arrow-key nav always matches
+  // however many columns are actually rendered at the current breakpoint
+  // (4 on desktop, 2 on mobile per the existing @media rule below).
+  const catalogGridContainerRef = useRef(null);
   const priceRefs = useRef({});
   const qtyRefs = useRef({});
   const itemNameInputRef = useRef(null);
@@ -45,7 +55,7 @@ function App() {
     return `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
   }, [finalTotal]);
 
-  const refreshProductsList = () => {
+  const refreshProductsList = useCallback(() => {
     axios.get('/api/products')
       .then(response => {
         if (response.data && Array.isArray(response.data)) {
@@ -59,7 +69,7 @@ function App() {
         }
       })
       .catch(error => console.error("Sync error:", error));
-  };
+  }, []);
 
   // 🔥 FIX: Added Optimistic UI & Unblock Mechanism so adding works instantly
   const handleAddDirectItemToCatalog = (e) => {
@@ -89,7 +99,7 @@ function App() {
     });
   };
 
-  const addCatalogItemToCart = (product) => {
+  const addCatalogItemToCart = useCallback((product) => {
     const uniqueCartId = 'cart-' + String(Math.random()).replace('.', '') + '-' + String(new Date().getTime());
 
     const newCartItem = {
@@ -107,7 +117,7 @@ function App() {
         priceRefs.current[uniqueCartId].select();
       }
     }, 50);
-  };
+  }, []);
 
   const updateCartItem = (cartItemId, key, value) => {
     setCart(prevCart => prevCart.map(item => 
@@ -132,11 +142,15 @@ function App() {
       setFocusedProductIndex(0);
       
       const realDbId = product._id || product.id;
-      if (realDbId && !String(realDbId).startsWith('local-')) {
+      if (isValidMongoId(realDbId)) {
         axios.delete(`/api/products/${realDbId}`)
           .then(() => console.log("Deleted from database successfully."))
           .catch(err => console.log("Backend 500 bypassed, safely deleted locally."));
       }
+      // If realDbId isn't a valid ObjectId (missing, "0"/"1" style legacy id,
+      // or a local-temp id), we deliberately skip the network call entirely -
+      // the blacklist above is already what hides it for good, and this is
+      // exactly what stops /api/products/0 from ever being requested.
     }
   };
 
@@ -151,12 +165,24 @@ function App() {
 
   useEffect(() => {
     refreshProductsList();
-  }, []);
+  }, [refreshProductsList]);
 
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
       if (showReceipt) return;
-      const itemsPerRow = 4; 
+
+      // Read the grid's *actual* current column count instead of assuming 4.
+      // This is what makes Up/Down arrow nav correct on the 2-column mobile
+      // layout too, with zero hardcoded breakpoint numbers to keep in sync.
+      let itemsPerRow = 4;
+      if (catalogGridContainerRef.current) {
+        const computedCols = window
+          .getComputedStyle(catalogGridContainerRef.current)
+          .getPropertyValue('grid-template-columns')
+          .split(' ')
+          .filter(Boolean);
+        if (computedCols.length > 0) itemsPerRow = computedCols.length;
+      }
       
       if (document.activeElement.tagName === 'INPUT') return;
 
@@ -182,7 +208,7 @@ function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [products, focusedProductIndex, showReceipt]);
+  }, [products, focusedProductIndex, showReceipt, addCatalogItemToCart]);
 
   useEffect(() => {
     if (document.activeElement.tagName !== 'INPUT' && productGridRef.current[focusedProductIndex]) {
@@ -433,7 +459,7 @@ function App() {
           Menu Catalog
         </h2>
         
-        <div className="catalog-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const uniqueKeyId = String(product._id || product.id || product.name) + '-' + idx;
             const isFocused = focusedProductIndex === idx;
