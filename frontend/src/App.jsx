@@ -61,25 +61,53 @@ function App() {
         if (response.data && Array.isArray(response.data)) {
           const savedBlacklist = JSON.parse(localStorage.getItem('tallytap_deleted_blacklist') || '[]');
           
+          // Step 1: Remove completely blacklisted/deleted ghost items
           const cleanData = response.data.filter(p => {
             const checkId = String(p._id || p.id || p.name);
-            return !savedBlacklist.includes(checkId) && !savedBlacklist.includes(p.name);
+            const nameStr = String(p.name);
+            const lowerName = nameStr.toLowerCase();
+            return !savedBlacklist.includes(checkId) && 
+                   !savedBlacklist.includes(nameStr) && 
+                   !savedBlacklist.includes(lowerName);
           });
-          setProducts(cleanData);
+
+          // 🔥 FIX: Step 2: Aggressive Deduplication! 
+          // Database mein agar pichle bugs ki wajah se 20 "ring" pade hain, toh screen par sirf 1 aayega.
+          const uniqueProducts = [];
+          const seenNames = new Set();
+
+          for (const p of cleanData) {
+            if (!p.name) continue;
+            const lowerName = String(p.name).toLowerCase().trim();
+            if (!seenNames.has(lowerName)) {
+              seenNames.add(lowerName);
+              uniqueProducts.push(p);
+            }
+          }
+
+          setProducts(uniqueProducts);
         }
       })
       .catch(error => console.error("Sync error:", error));
   }, []);
 
-  // 🔥 FIX: Re-added Unblock logic so re-adding a deleted item brings it back permanently
   const handleAddDirectItemToCatalog = (e) => {
     e.preventDefault();
     const newName = sidebarItemName.trim();
     if (!newName) return;
 
+    // 🔥 FIX: Duplicate Item Lock! 
+    // Agar screen par item pehle se hai, toh db call rok do taaki aur kachra jama na ho
+    const isDuplicate = products.some(p => String(p.name).toLowerCase() === newName.toLowerCase());
+    if (isDuplicate) {
+      alert(`${newName} is already in the menu catalog!`);
+      setSidebarItemName('');
+      return;
+    }
+
     // Remove the item from blacklist so it stays in the catalog when re-added
     const savedBlacklist = JSON.parse(localStorage.getItem('tallytap_deleted_blacklist') || '[]');
-    const updatedBlacklist = savedBlacklist.filter(id => id.toLowerCase() !== newName.toLowerCase());
+    const updatedBlacklist = savedBlacklist.filter(id => String(id).toLowerCase() !== newName.toLowerCase());
     setBlacklistedIds(updatedBlacklist);
     localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
 
@@ -127,7 +155,6 @@ function App() {
 
   const removeFromCart = (cartItemId) => setCart(prevCart => prevCart.filter(item => item.cartItemId !== cartItemId));
   
-  // 🔥 FIX: Stronger Delete logic to wipe it perfectly and block it until re-added
   const handleDeleteMenuProduct = (e, product) => {
     e.stopPropagation();
     e.preventDefault();
@@ -136,13 +163,16 @@ function App() {
       const targetIdStr = String(product._id || product.id || product.name);
       const targetNameStr = String(product.name);
 
-      // Block both the ID and the Exact Name
-      const updatedBlacklist = [...new Set([...blacklistedIds, targetIdStr, targetNameStr])];
+      // Block both the ID, exact Name, and Lowercase Name
+      const updatedBlacklist = [...new Set([...blacklistedIds, targetIdStr, targetNameStr, targetNameStr.toLowerCase()])];
       setBlacklistedIds(updatedBlacklist);
       localStorage.setItem('tallytap_deleted_blacklist', JSON.stringify(updatedBlacklist));
 
       // Instant UI removal
-      setProducts(prev => prev.filter(p => p.name !== targetNameStr && String(p._id || p.id) !== targetIdStr));
+      setProducts(prev => prev.filter(p => 
+        String(p.name).toLowerCase() !== targetNameStr.toLowerCase() && 
+        String(p._id || p.id) !== targetIdStr
+      ));
       setFocusedProductIndex(0);
       
       const realDbId = product._id || product.id;
@@ -502,7 +532,7 @@ function App() {
         <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             
-            // 🔥 FIX 1: Stable Key
+            // Stable Key ensures React doesn't glitch DOM on DB fetch
             const stableKeyId = `item-${idx}-${product.name}`;
             const isFocused = focusedProductIndex === idx;
             
@@ -511,7 +541,6 @@ function App() {
                 key={stableKeyId} 
                 ref={el => productGridRef.current[idx] = el}
                 tabIndex={0}
-                // 🔥 FIX 2: onMouseDown captures the click instantly
                 onMouseDown={(e) => {
                   if (!e.target.closest('button')) {
                     addCatalogItemToCart(product);
