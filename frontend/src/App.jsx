@@ -10,6 +10,28 @@ axios.defaults.baseURL = 'https://tallytap-backend.onrender.com';
 // what stops /api/products/0 from ever firing and 500'ing.
 const isValidMongoId = (id) => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id);
 
+// 🛡️ PERSISTENCE FIX: a local, browser-side cache of every product the user
+// has added. This exists because the backend can lose items on its own
+// (e.g. a Render free-tier restart wiping in-memory data) - this cache is
+// the safety net that makes sure an item is NEVER removed from the app on
+// its own. It is only ever removed when the user explicitly deletes it.
+const getLocalCatalog = () => {
+  try {
+    const saved = localStorage.getItem('tallytap_local_catalog');
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalCatalog = (list) => {
+  try {
+    localStorage.setItem('tallytap_local_catalog', JSON.stringify(list));
+  } catch {
+    // localStorage unavailable/full - non-fatal, cache simply won't persist
+  }
+};
+
 function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -85,7 +107,27 @@ function App() {
             }
           }
 
+          // 🛡️ PERSISTENCE FIX: merge in anything we know about locally that
+          // the backend "forgot" (e.g. after a Render free-tier restart
+          // wiped its in-memory data). An item only leaves this list when
+          // the user explicitly deletes it - never on its own.
+          const cachedItems = getLocalCatalog();
+          for (const cached of cachedItems) {
+            if (!cached.name) continue;
+            const lowerName = String(cached.name).toLowerCase().trim();
+            const checkId = String(cached._id || cached.id || cached.name);
+            const isBlacklisted = savedBlacklist.includes(checkId) ||
+                                   savedBlacklist.includes(String(cached.name)) ||
+                                   savedBlacklist.includes(lowerName);
+            if (!isBlacklisted && !seenNames.has(lowerName)) {
+              seenNames.add(lowerName);
+              uniqueProducts.push(cached);
+            }
+          }
+
           setProducts(uniqueProducts);
+          // Keep the cache itself in sync with whatever is now showing.
+          saveLocalCatalog(uniqueProducts);
         }
       })
       .catch(error => console.error("Sync error:", error));
@@ -113,8 +155,13 @@ function App() {
 
     // 1. Instant UI Par Dikhao (Optimistic Update)
     const tempLocalId = `local-${Date.now()}`;
-    setProducts(prev => [{ _id: tempLocalId, id: tempLocalId, name: newName, price: 0 }, ...prev]);
+    const newProduct = { _id: tempLocalId, id: tempLocalId, name: newName, price: 0 };
+    setProducts(prev => [newProduct, ...prev]);
     setSidebarItemName('');
+
+    // 🛡️ PERSISTENCE FIX: remember it locally so it stays in the app even
+    // if the backend's own storage later forgets it.
+    saveLocalCatalog([newProduct, ...getLocalCatalog()]);
 
     // 2. Backend par bhejo
     axios.post('/api/products', { name: newName, price: 0 })
@@ -174,6 +221,14 @@ function App() {
         String(p._id || p.id) !== targetIdStr
       ));
       setFocusedProductIndex(0);
+
+      // 🛡️ PERSISTENCE FIX: drop it from the local cache too, so it stays
+      // gone for good and is never re-merged back in by refreshProductsList.
+      const remainingCache = getLocalCatalog().filter(p => 
+        String(p.name).toLowerCase() !== targetNameStr.toLowerCase() && 
+        String(p._id || p.id) !== targetIdStr
+      );
+      saveLocalCatalog(remainingCache);
       
       const realDbId = product._id || product.id;
       if (isValidMongoId(realDbId)) {
