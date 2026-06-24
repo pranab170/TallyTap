@@ -312,10 +312,48 @@ function App() {
   };
 
   return (
-    <div className="main-layout" style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: 'sans-serif', margin: 0, padding: 0, backgroundColor: '#fff', color: '#000', overflow: 'hidden' }}>
+    <div className="main-layout" style={{ display: 'flex', width: '100%', height: '100vh', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", margin: 0, padding: 0, backgroundColor: '#fff', color: '#000', overflow: 'hidden' }}>
       
       <style>{`
         body { margin: 0; padding: 0; overflow: hidden; }
+
+        /* --- Cross-platform polish (iOS / Android / Mac / Windows) --- */
+        html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+        /* iOS Safari's 100vh includes the address bar and can clip content.
+           This makes the layout truly fill the visible viewport on iPhones. */
+        html { height: -webkit-fill-available; }
+        @supports (-webkit-touch-callout: none) {
+          .main-layout { min-height: -webkit-fill-available; }
+        }
+
+        /* Smooth, native-feeling scrolling everywhere (incl. momentum on iOS) */
+        html { scroll-behavior: smooth; }
+        * { -webkit-overflow-scrolling: touch; }
+
+        /* Slim, modern scrollbar instead of the default chunky one */
+        *::-webkit-scrollbar { width: 6px; height: 6px; }
+        *::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.25); border-radius: 10px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        * { scrollbar-width: thin; }
+
+        /* Tactile press feedback on every button - feels native on touch + mouse */
+        button {
+          transition: transform 0.12s ease, opacity 0.12s ease, background-color 0.15s ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+        button:active { transform: scale(0.95); opacity: 0.85; }
+
+        /* Smooth, clear focus glow on inputs (helps keyboard-only billing too) */
+        input {
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+          font-size: 16px !important; /* stops iOS Safari from auto-zooming the page on focus */
+        }
+        input:focus { border-color: #007BFF !important; box-shadow: 0 0 0 3px rgba(0,123,255,0.15) !important; }
+
+        /* Catalog cards: slightly smoother hover/press feel */
+        .catalog-grid > div { transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+        .catalog-grid > div:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
 
         @media (max-width: 1024px) {
           body { overflow: auto; } 
@@ -332,7 +370,7 @@ function App() {
             overflow-y: visible !important;
           }
           .catalog-grid {
-            grid-template-columns: repeat(2, 1fr) !important; 
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) !important; 
             gap: 10px !important;
           }
           .cart-pane {
@@ -459,7 +497,7 @@ function App() {
           Menu Catalog
         </h2>
         
-        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        <div className="catalog-grid" ref={catalogGridContainerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           {Array.isArray(products) && products.map((product, idx) => {
             const uniqueKeyId = String(product._id || product.id || product.name) + '-' + idx;
             const isFocused = focusedProductIndex === idx;
@@ -479,7 +517,7 @@ function App() {
               >
                 <button 
                   onClick={(e) => handleDeleteMenuProduct(e, product)} 
-                  style={{ position: 'absolute', top: '6px', right: '10px', background: 'none', border: 'none', color: '#dc3545', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: '2px', zIndex: 10 }}
+                  style={{ position: 'absolute', top: '2px', right: '4px', background: 'none', border: 'none', color: '#dc3545', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', padding: '8px', zIndex: 10, lineHeight: 1 }}
                 >
                   ✕
                 </button>
@@ -501,7 +539,7 @@ function App() {
               <div key={item.cartItemId} style={{ display: 'flex', flexDirection: 'column', padding: '12px 10px', borderBottom: '1px solid #eee', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                   <span style={{ fontSize: '15px', color: '#007BFF' }}>{item.name}</span>
-                  <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+                  <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', fontSize: '16px', padding: '8px', lineHeight: 1 }}>✕</button>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -516,6 +554,7 @@ function App() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === 'ArrowRight') {
                           e.preventDefault();
+                          e.stopPropagation();
                           if (qtyRefs.current[item.cartItemId]) {
                             qtyRefs.current[item.cartItemId].focus();
                             qtyRefs.current[item.cartItemId].select();
@@ -536,12 +575,14 @@ function App() {
                       onKeyDown={(e) => {
                         if (e.key === 'ArrowLeft') {
                           e.preventDefault();
+                          e.stopPropagation();
                           if (priceRefs.current[item.cartItemId]) {
                             priceRefs.current[item.cartItemId].focus();
                             priceRefs.current[item.cartItemId].select();
                           }
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
+                          e.stopPropagation();
                           e.target.blur(); 
                           
                           if (productGridRef.current[focusedProductIndex]) {
