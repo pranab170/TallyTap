@@ -37,7 +37,7 @@ function App() {
     try {
       const saved = localStorage.getItem('tallytap_deleted_blacklist');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -145,7 +145,7 @@ function App() {
       if (isValidMongoId(realDbId)) {
         axios.delete(`/api/products/${realDbId}`)
           .then(() => console.log("Deleted from database successfully."))
-          .catch(err => console.log("Backend 500 bypassed, safely deleted locally."));
+          .catch(() => console.log("Backend 500 bypassed, safely deleted locally."));
       }
       // If realDbId isn't a valid ObjectId (missing, "0"/"1" style legacy id,
       // or a local-temp id), we deliberately skip the network call entirely -
